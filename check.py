@@ -7,9 +7,10 @@
 страницами, якоря и закрытость от индексации.
 
 Запуск:  python3 check.py   (из корня репозитория, без аргументов)
-Код возврата: 0 — всё чисто, 1 — есть ошибки.
+Код возврата: 0 — ошибок нет (предупреждения о страницах из PLANNED не в счёт),
+1 — есть ошибки.
 """
-import json, pathlib, re, shutil, subprocess, sys
+import difflib, json, pathlib, re, shutil, subprocess, sys
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).parent
@@ -41,6 +42,17 @@ BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "f
 HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form"}  # шапка раздела через _head()
 CIRCUIT_SYMBOLS = {"saw", "cap", "dot"}
 CARD_FILLS = {"accent", "slate"}
+
+# Страницы первой волны, которые ещё не написаны. Ссылка на страницу из этого
+# списка — предупреждение: страница появится, сборку это не валит. Ссылка на
+# любую другую несуществующую страницу — ошибка: скорее всего, опечатка.
+# Написал страницу — убери её отсюда. Список опустел — режим предупреждений
+# выключился сам. Список живёт здесь, а не в STATUS.md: разбирать таблицу
+# из markdown ненадёжно, а этот файл и так правят вместе со страницами.
+PLANNED = {
+    "ups_boiler", "forklift", "skif", "damping", "substations", "mobile", "custom",
+    "about", "buy", "support", "docs", "partners", "articles", "legal",
+}
 
 TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z][\w-]*)([^>]*)>")
 ENTITY_RE = re.compile(r"&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);")
@@ -295,6 +307,29 @@ def site_links(site):
     return out
 
 
+def missing_page(target, known):
+    """Ссылка на страницу, которой нет в content/: (вид, сообщение).
+    Из списка PLANNED — предупреждение, иначе ошибка с подсказкой, на что похоже."""
+    slug = target.removesuffix(".html")
+    if slug in PLANNED:
+        return "ненаписанная страница", f"страницы {target} пока нет (нужен content/{slug}.json)"
+    msg = f"страницы {target} нет, и она не в списке ожидаемых (PLANNED в check.py)"
+    near = difflib.get_close_matches(slug, sorted(known | PLANNED), n=1, cutoff=0.6)
+    if near:
+        msg += f" — опечатка? похоже на {near[0]}.html"
+    else:
+        msg += " — опечатка? если страница действительно планируется, добавьте её в PLANNED"
+    return "ссылка", msg
+
+
+def check_planned(slugs, rep):
+    """Страница написана, а из PLANNED не убрана: список перестаёт пустеть,
+    и ссылка на эту страницу после её удаления прошла бы предупреждением."""
+    for slug in sorted(PLANNED & slugs):
+        rep.add(page_group(slug), "список ожидаемых",
+                f"страница написана, но всё ещё числится в PLANNED в check.py — уберите её оттуда")
+
+
 def check_site(site, slugs, rep):
     """Пункт 4: меню и подвал ссылаются на страницы, которые есть в content/.
     Плюс разметка в текстах site.json."""
@@ -309,8 +344,9 @@ def check_site(site, slugs, rep):
         if page and page.removesuffix(".html") not in slugs:
             missing.setdefault(page, []).append(where)
     for page, wheres in sorted(missing.items()):
-        rep.add(SITE_GROUP, "ненаписанная страница", f"{page}: страницы нет (нужен content/{page.removesuffix('.html')}.json)\n"
-                                    f"        ссылаются: " + "\n                   ".join(wheres))
+        kind, msg = missing_page(page, slugs)
+        rep.add(SITE_GROUP, kind, f"{page}: {msg}\n"
+                                  f"        ссылаются: " + "\n                   ".join(wheres))
 
     # draft — служебная полоса «макет»: build.py выводит её как разметку, и <b> в ней
     # стоит намеренно. Снимается к выпуску (README, «Состояние»), поэтому здесь не проверяется.
@@ -388,7 +424,7 @@ def parse_dist():
     return pages
 
 
-def check_dist(pages, data, site_missing, rep):
+def check_dist(pages, data, known, site_missing, rep):
     """Пункты 2, 3, 7: ссылки, якоря, noindex на каждой странице."""
     shared = {}  # ошибки шапки/подвала: одинаковы на всех страницах, выводятся один раз
     for name, p in pages.items():
@@ -414,9 +450,7 @@ def check_dist(pages, data, site_missing, rep):
                     if link["zone"] != "body" and target in site_missing:
                         continue  # уже сказано в разделе site.json
                     if target.endswith(".html"):
-                        problem = ("ненаписанная страница",
-                                   f"страницы {target} нет "
-                                   f"(не собрана: нет content/{target.removesuffix('.html')}.json)")
+                        problem = missing_page(target, known)
                     else:
                         problem = ("ссылка", f"файла {target} нет в dist/")
                 elif anchor:
@@ -508,6 +542,7 @@ def main():
     site_missing = set()
     if site is None and SITE_GROUP not in rep.groups:
         rep.add(SITE_GROUP, "json", "файла content/site.json нет")
+    check_planned(set(data) | broken, rep)
     for slug, page in data.items():
         check_page_fields(slug, page, rep)
         check_page_markup(slug, page, rep)
@@ -518,7 +553,7 @@ def main():
     stats = f"страниц в content/: {len(data)}"
     if build(rep, rep.count() > 0):
         pages = parse_dist()
-        check_dist(pages, data, site_missing, rep)
+        check_dist(pages, data, set(data) | broken, site_missing, rep)
         links = sum(len(p.links) for p in pages.values())
         stats += f", собрано: {len(pages)}, ссылок проверено: {links}"
     print_report(rep, stats)
