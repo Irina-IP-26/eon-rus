@@ -40,7 +40,7 @@ def b_hero(b):
         f'<a class="pill{" ghost" if c.get("ghost") else ""}" href="{attr(c,"href")}">{e(c["label"])}</a>'
         for c in b.get("cta", [])
     )
-    plate = _shot(b.get("image")) + (_plate(b["plate"]) if b.get("plate") else "")
+    plate = _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
     plate = f'<div>{plate}</div>' if plate else ""
     i = f' id="{attr(b, "id")}"' if b.get("id") else ""
     return f"""<section class="hero"{i}>
@@ -238,16 +238,22 @@ def _head(b):
     return f'<div class="head">{eb}<div><h2>{raw(b["h2"])}{q}</h2>{lede}</div></div>'
 
 
-def _shot(img):
+def _shot(img, eager=False):
     """Изображение или подписанное пустое место под него.
 
     Поля: src (путь к файлу), alt (альтернативный текст), caption (подпись),
     need (что именно должно быть на снимке — показывается, пока файла нет).
+
+    eager=True — для снимка первого экрана. Ленивая загрузка откладывает
+    картинку до приближения к экрану, и для героя это значит «загрузить
+    последней»: главный кадр страницы появлялся бы позже всего.
     """
     if not img:
         return ""
     if img.get("src"):
-        inner = f'<img src="{attr(img, "src")}" alt="{attr(img, "alt")}" loading="lazy">'
+        load = ('loading="eager" fetchpriority="high"' if eager
+                else 'loading="lazy"')
+        inner = f'<img src="{attr(img, "src")}" alt="{attr(img, "alt")}" {load}>'
         box = f'<div class="shot">{inner}</div>'
     else:
         need = e(img.get("need", "место под изображение"))
