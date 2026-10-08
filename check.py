@@ -11,6 +11,7 @@
 1 — есть ошибки.
 """
 import difflib, html, json, pathlib, re, shutil, subprocess, sys, time
+from imgsize import image_size
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).parent
@@ -69,7 +70,8 @@ class Report:
     # Виды, которые НЕ валят сборку: пока идёт первая волна, ссылки на
     # ещё не написанные страницы — это нормальное состояние работы, а не поломка.
     # «поиск» — длины title и description: ориентир для выдачи, а не поломка страницы.
-    SOFT_KINDS = {"ненаписанная страница", "поиск"}
+    # «кадр» — пропорции снимка не совпадают с рамкой: снимок обрезан, но не сломан.
+    SOFT_KINDS = {"ненаписанная страница", "поиск", "кадр"}
 
     def __init__(self):
         self.groups = {}
@@ -839,6 +841,7 @@ class PageParser(HTMLParser):
         self.cur = None       # ссылка, текст которой сейчас собирается
         self.head = None      # заголовок, текст которого сейчас собирается
         self.in_title = False
+        self.section = ""     # class раздела, внутри которого сейчас разбор: от него зависит рамка снимка
 
     def _zone(self):
         return self.zone[-1] if self.zone else "body"
@@ -850,6 +853,8 @@ class PageParser(HTMLParser):
             self.id_list.append((a["id"], self._zone(), self.getpos()[0]))
         if tag in ("header", "footer"):
             self.zone.append(tag)
+        if tag == "section":
+            self.section = a.get("class") or ""
         if tag == "meta" and (a.get("name") or "").lower() == "robots":
             self.robots.append(a.get("content") or "")
         if tag == "meta" and (a.get("name") or "").lower() == "description":
@@ -862,6 +867,7 @@ class PageParser(HTMLParser):
             self.headings.append(self.head)
         if tag == "img":
             self.imgs.append({"src": a.get("src") or "", "alt": a.get("alt"), "zone": self._zone(),
+                              "hero": "hero" in self.section.split(),
                               "line": self.getpos()[0]})
             if self.cur is not None:
                 self.cur["text"] += " " + (a.get("alt") or "")  # картинка в ссылке подписывает её своим alt
@@ -875,6 +881,8 @@ class PageParser(HTMLParser):
     def handle_endtag(self, tag):
         if tag in ("header", "footer") and self.zone:
             self.zone.pop()
+        if tag == "section":
+            self.section = ""
         if tag == "a":
             self.cur = None
         if tag == "title":
@@ -954,6 +962,20 @@ def common_words(a, b):
     piece = a[ma[i].start():ma[i + k - 1].end()]
     return k, piece, len(" ".join(ta[i:i + k])), min(len(" ".join(ta)), len(" ".join(tb)))
 DESCR_MIN, DESCR_MAX = 70, 200
+# Рамка снимка задана в style.css: .shot{aspect-ratio:4/3}, .hero .shot{aspect-ratio:3/2},
+# снимок растянут на рамку с object-fit:cover — что не влезло, обрезается. Порог потери
+# 20%: снимок с фотоаппарата (3:2) в рамке 4:3 теряет 11% и это норма, 16:9 — уже 25%.
+FRAME, FRAME_HERO = 4 / 3, 3 / 2
+CROP_MAX = 0.20
+
+
+def ratio_name(w, h):
+    """1920×1080 → «16:9», 1000×1000 → «1:1»; редкие пропорции — десятичной дробью."""
+    for a, b in ((1, 1), (4, 3), (3, 2), (16, 10), (16, 9), (2, 1), (5, 4), (21, 9)):
+        for x, y in ((a, b), (b, a)):
+            if abs(w / h - x / y) < 0.02:
+                return f"{x}:{y}"
+    return f"{w / h:.2f}:1".replace(".", ",")
 ARROWS = "→←↑↓↗↘›‹»«·•—–-"
 
 
@@ -1003,6 +1025,18 @@ def check_html(pages, rep):
                                                    f"assets/, значит он должен лежать в assets/{src} (строка {im['line']})")
                 else:
                     images.setdefault(src, path.stat().st_size)
+                    size = image_size(path)
+                    if size and size[1]:
+                        w, h = size
+                        frame = FRAME_HERO if im["hero"] else FRAME
+                        r = w / h
+                        loss = 1 - min(r / frame, frame / r)
+                        if loss >= CROP_MAX:
+                            side = "ширины" if r > frame else "высоты"
+                            fname = "3:2 (герой)" if im["hero"] else "4:3"
+                            report(im["zone"], "кадр", f"<img src=\"{src}\"> — снимок {w}×{h} ({ratio_name(w, h)}) "
+                                                       f"в рамке {fname}: рамка обрежет {loss:.0%} {side} "
+                                                       f"(строка {im['line']})")
             if not (im["alt"] or "").strip():
                 state = "без alt" if im["alt"] is None else "с пустым alt"
                 report(im["zone"], "картинки", f"<img src=\"{im['src']}\"> {state} — для поиска и для читалки "
@@ -1244,7 +1278,8 @@ def main():
                 if k in Report.SOFT_KINDS:
                     kinds[k] = kinds.get(k, 0) + 1
         what = {"ненаписанная страница": "ссылки на ещё не написанные страницы",
-                "поиск": "title или description: длина вне ориентира или почти повтор"}
+                "поиск": "title или description: длина вне ориентира или почти повтор",
+                "кадр": "пропорции снимка не совпадают с рамкой — часть кадра обрежется"}
         lines = "\n".join(f"  {n} — {what.get(k, k)}" for k, n in sorted(kinds.items()))
         head = "Ошибок нет. Предупреждения" if not rep.hard() else "Из них предупреждения"
         print(f"\n{head} (сборку не валят):\n{lines}")
