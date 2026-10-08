@@ -477,6 +477,128 @@ def table_bounds(page, g, rep):
     return out
 
 
+def lineup_rows(page):
+    """Строк в модельном ряду страницы: во всех таблицах, где есть колонка с bounds.
+    Отметка bounds уже значит «это и есть модельный ряд», вторая не нужна; таблица
+    без неё (батарейные модули рядом с конфигурациями) в счёт не идёт."""
+    n = 0
+    for b in page.get("blocks", []):
+        if b.get("type") != "table" or not isinstance(b.get("columns"), list):
+            continue
+        if not any(isinstance(c, dict) and c.get("bounds") is True for c in b["columns"]):
+            continue
+        groups = b.get("groups") if b.get("groups") else [{"rows": b.get("rows") or []}]
+        n += sum(len(g.get("rows") or []) for g in groups if isinstance(g, dict))
+    return n
+
+
+def page_lineups(data, broken, rep):
+    """Модельный ряд каждой страницы: свои таблицы с bounds плюс таблицы страницы из lineup.
+    → {slug: {"units": {…}, "rows": N, "pages": [откуда]}}. Свои не подменяются, а складываются:
+    появись на продающей странице своя отмеченная таблица — молча терять её нельзя."""
+    own = {}
+    for slug, page in data.items():
+        if isinstance(page, dict):
+            units = table_bounds(page, page_group(slug), rep)
+            rows = lineup_rows(page)
+            own[slug] = {"units": units, "rows": rows, "pages": [slug] if units or rows else []}
+    out = {}
+    for slug, e in own.items():
+        units = {u: dict(v, vals=dict(v["vals"])) for u, v in e["units"].items()}
+        res = {"units": units, "rows": e["rows"], "pages": list(e["pages"])}
+        q = data[slug].get("lineup")
+        if q is not None:
+            g = page_group(slug)
+            if not isinstance(q, str) or not q.strip():
+                rep.add(g, "диапазон", f"страница: lineup = {q!r} — нужно имя страницы модельного ряда, "
+                                       f"например \"guardian-lineup\"")
+            elif q.endswith(".html"):
+                rep.add(g, "диапазон", f"страница: lineup = «{q}» — имя страницы без .html: "
+                                       f"«{q.removesuffix('.html')}»")
+            elif q == slug:
+                rep.add(g, "диапазон", f"страница: lineup = «{q}» — страница ссылается сама на себя; "
+                                       f"свои таблицы с bounds и так в силе, поле не нужно")
+            elif q in broken:
+                pass  # страница есть, но её JSON не читается — об этом уже сказано
+            elif q not in own:
+                rep.add(g, "диапазон", f"страница: lineup = «{q}» — такой страницы нет (нужен content/{q}.json)")
+            elif not own[q]["units"]:
+                rep.add(g, "диапазон", f"страница: lineup = «{q}» — на странице {q} нет ни одной колонки "
+                                       f"с \"bounds\": true; связь выглядит рабочей, а сверять не с чем")
+            else:
+                # Один уровень: lineup страницы модельного ряда не подтягивается — модельный ряд конечная точка.
+                for u, v in own[q]["units"].items():
+                    t = units.setdefault(u, dict(v, vals={}))
+                    for val, model in v["vals"].items():
+                        t["vals"].setdefault(val, model)
+                res["rows"] += own[q]["rows"]
+                res["pages"].append(q)
+        out[slug] = res
+    return out
+
+
+# «N конфигураций» против числа строк. Слова — в README, список можно дополнять.
+# «исполнение» сюда не входит намеренно: у «Хранителя» три исполнения — это корпуса,
+# а не строки модельного ряда. «модуль» — тоже: у модулей своя таблица.
+COUNT_NOUNS = {
+    "конфигурация": "конфигурация конфигурации конфигурацию конфигурацией конфигураций конфигурациям конфигурациями конфигурациях",
+    "модель": "модель модели моделью моделей моделям моделями моделях",
+    "позиция": "позиция позиции позицию позицией позиций позициям позициями позициях",
+}
+_UNITS = {2: "два две двух двум двумя", 3: "три трех трем тремя", 4: "четыре четырех четырем четырьмя",
+          5: "пять пяти пятью", 6: "шесть шести шестью", 7: "семь семи семью", 8: "восемь восьми восемью восьмью",
+          9: "девять девяти девятью"}
+_ONE = "один одна одно одного одной одному одним одну"   # только в составных: «двадцать одна»
+_TEENS = {10: "десять", 11: "одиннадцать", 12: "двенадцать", 13: "тринадцать", 14: "четырнадцать",
+          15: "пятнадцать", 16: "шестнадцать", 17: "семнадцать", 18: "восемнадцать", 19: "девятнадцать"}
+_TENS = {20: "двадцать двадцати двадцатью", 30: "тридцать тридцати тридцатью", 40: "сорок сорока",
+         50: "пятьдесят пятидесяти пятьюдесятью", 60: "шестьдесят шестидесяти шестьюдесятью",
+         70: "семьдесят семидесяти семьюдесятью", 80: "восемьдесят восьмидесяти восемьюдесятью",
+         90: "девяносто девяноста"}
+
+
+def _number_words():
+    """Числительные от 2 до 100 словами, с падежами: «шестнадцать», «из шестнадцати»,
+    «двадцать две», «двадцати двух». «один / одна» сами по себе — оборот речи, не счёт."""
+    w = {}
+    for n, forms in _UNITS.items():
+        for f in forms.split():
+            w[f] = n
+    for n, f in _TEENS.items():
+        w[f] = n
+        w[f[:-1] + "и"] = n      # шестнадцать → шестнадцати
+        w[f + "ю"] = n           # шестнадцатью
+    for n, forms in _TENS.items():
+        for f in forms.split():
+            w[f] = n
+            for un, uforms in list(_UNITS.items()) + [(1, _ONE)]:
+                for uf in uforms.split():
+                    w[f"{f} {uf}"] = n + un
+    w["сто"] = w["ста"] = 100
+    return w
+
+
+NUMBER_WORDS = _number_words()
+_NW = "|".join(sorted((re.escape(k).replace(r"\ ", r"\s+") for k in NUMBER_WORDS), key=len, reverse=True))
+_NOUN = "|".join(sorted({f for v in COUNT_NOUNS.values() for f in v.split()}, key=len, reverse=True))
+_ADJ = r"[а-я]+(?:ые|ых|ая|ое|ий|ый|ой|ую|ыми|ими|ого|его|ому|ему|ей)"
+COUNT_RE = re.compile(rf"(?<![\wа-я])(?P<n>\d+|{_NW})\s+(?:{_ADJ}\s+){{0,2}}(?P<noun>{_NOUN})(?![\wа-я])")
+
+
+def count_problems(text, rows):
+    """«16 конфигураций», «двадцать две серийные модели» — число обязано равняться строкам ряда."""
+    out = []
+    low = text.lower().replace("ё", "е")   # та же длина, позиции совпадают с исходным текстом
+    for m in COUNT_RE.finditer(low):
+        raw_n = m.group("n")
+        n = int(raw_n) if raw_n.isdigit() else NUMBER_WORDS.get(re.sub(r"\s+", " ", raw_n))
+        if n is None or n < 2:
+            continue
+        if n != rows:
+            out.append((text[m.start():m.end()], f"в тексте {n}, а строк в модельном ряду {rows}", None))
+    return out
+
+
 # Слово перед одиночным числом, которое делает его заявлением о крае линейки.
 # «не более N» и «не менее N» сюда НЕ входят: это обещание на каждое изделие
 # («ресурс не менее 3000 циклов» — ни одна батарея не хуже), а не край ряда.
@@ -576,29 +698,37 @@ def bound_texts(obj, here, path="", owner=None, ignore=None, rep=None, group=Non
         yield path, obj, owner, ignore
 
 
-def check_bounds_in(data, here, group, all_bounds, rep, page=None):
-    """Правила границ для одного файла данных: страницы (here = её slug) или site.json (here = None)."""
+def check_bounds_in(data, here, group, lineups, rep, page=None):
+    """Правила границ и счёта для одного файла данных: страницы (here = её slug) или site.json (here = None)."""
     used, ignores = set(), set()
     for path, value, owner, ignore in bound_texts(data, here, owner=here, rep=rep, group=group, page=page):
         if ignore:
             ignores.add(ignore)
-        bounds = all_bounds.get(owner)
-        if not bounds:
-            continue  # у страницы, к которой относится текст, нет таблицы с bounds — сверять не с чем
-        problems = bound_problems(plain(value), bounds)
+        lu = lineups.get(owner)
+        if not lu or not (lu["units"] or lu["rows"]):
+            continue  # у страницы, к которой относится текст, нет модельного ряда — сверять не с чем
+        text = plain(value)
+        problems = bound_problems(text, lu["units"]) + (count_problems(text, lu["rows"]) if lu["rows"] else [])
         if problems and ignore:
             used.add(ignore)
             continue
         where = readable_path(page, path) if page else path
-        src = " таблице" if owner == here else f" таблице страницы {owner}.html"
+        src = " таблице" if lu["pages"] == [here] else \
+              " таблице страницы " + ", ".join(f"{p}.html" for p in lu["pages"])
         for phrase, msg, u in problems:
-            vals = bounds[u]["vals"]
-            line = f"{where}: «{phrase}» — {msg}\n        по{src}: от {fmt(min(vals))} до {fmt(max(vals))} {bounds[u]['unit']}"
-            if msg.startswith("такого"):
-                line += f", значения: {', '.join(fmt(v) for v in sorted(vals))}"
+            if u is None:
+                line = f"{where}: «{phrase}» — {msg}"
+                if lu["pages"] != [here]:
+                    line += f"\n        модельный ряд: {', '.join(p + '.html' for p in lu['pages'])}"
             else:
-                line += f" (колонка «{bounds[u]['col']}», {len(vals)} {plural(len(vals), 'значение', 'значения', 'значений')})"
-            line += "\n        если фраза не про края линейки — \"bounds_ignore\": true у этого элемента"
+                bounds = lu["units"]
+                vals = bounds[u]["vals"]
+                line = f"{where}: «{phrase}» — {msg}\n        по{src}: от {fmt(min(vals))} до {fmt(max(vals))} {bounds[u]['unit']}"
+                if msg.startswith("такого"):
+                    line += f", значения: {', '.join(fmt(v) for v in sorted(vals))}"
+                else:
+                    line += f" (колонка «{bounds[u]['col']}», {len(vals)} {plural(len(vals), 'значение', 'значения', 'значений')})"
+            line += "\n        если фраза не про модельный ряд — \"bounds_ignore\": true у этого элемента"
             rep.add(group, "диапазон", line)
     # Исключение, которое ничего не глушит, — мусор, который однажды прикроет настоящую ошибку.
     for ig in sorted(ignores - used):
@@ -866,13 +996,12 @@ def main():
         check_page_markup(slug, page, rep)
     # Границы: сначала таблицы всех страниц, потом тексты — текст со ссылкой
     # на другую страницу сверяется с её таблицей.
-    all_bounds = {slug: table_bounds(page, page_group(slug), rep)
-                  for slug, page in data.items() if isinstance(page, dict)}
+    lineups = page_lineups(data, broken, rep)
     for slug, page in data.items():
         if isinstance(page, dict):
-            check_bounds_in(page, slug, page_group(slug), all_bounds, rep, page)
+            check_bounds_in(page, slug, page_group(slug), lineups, rep, page)
     if site is not None:
-        check_bounds_in(site, None, SITE_GROUP, all_bounds, rep)
+        check_bounds_in(site, None, SITE_GROUP, lineups, rep)
     if site is not None:
         # страница с битым JSON существует, просто не читается — об этом уже сказано выше
         site_missing = check_site(site, set(data) | broken, rep)
