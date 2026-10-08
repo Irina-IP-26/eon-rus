@@ -10,7 +10,7 @@
 Код возврата: 0 — ошибок нет (предупреждения о страницах из PLANNED не в счёт),
 1 — есть ошибки.
 """
-import difflib, html, json, pathlib, re, shutil, subprocess, sys
+import difflib, html, json, pathlib, re, shutil, subprocess, sys, time
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).parent
@@ -71,7 +71,8 @@ class Report:
 
     # Виды, которые НЕ валят сборку: пока идёт первая волна, ссылки на
     # ещё не написанные страницы — это нормальное состояние работы, а не поломка.
-    SOFT_KINDS = {"ненаписанная страница"}
+    # «поиск» — длины title и description: ориентир для выдачи, а не поломка страницы.
+    SOFT_KINDS = {"ненаписанная страница", "поиск"}
 
     def __init__(self):
         self.groups = {}
@@ -729,7 +730,7 @@ def check_bounds_in(data, here, group, lineups, rep, page=None):
                 else:
                     line += f" (колонка «{bounds[u]['col']}», {len(vals)} {plural(len(vals), 'значение', 'значения', 'значений')})"
             line += "\n        если фраза не про модельный ряд — \"bounds_ignore\": true у этого элемента"
-            rep.add(group, "диапазон", line)
+            rep.add(group, "счёт" if u is None else "диапазон", line)
     # Исключение, которое ничего не глушит, — мусор, который однажды прикроет настоящую ошибку.
     for ig in sorted(ignores - used):
         where = readable_path(page, ig) if page and ig != "страница" else ig
@@ -829,25 +830,47 @@ def build(rep, data_errors):
 # ─────────────────────────────── готовые страницы ───────────────────────────────
 
 class PageParser(HTMLParser):
-    """Собирает со страницы id, ссылки (с текстом и зоной: шапка/подвал/тело) и meta robots."""
+    """Собирает со страницы всё, что проверяется по готовому HTML: id, ссылки (с текстом и зоной:
+    шапка/подвал/тело), заголовки, картинки, title, description и meta robots."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.ids, self.links, self.robots = set(), [], []
-        self.zone, self.depth = [], 0
-        self.cur = None
+        self.ids, self.id_list, self.links, self.robots = set(), [], [], []
+        self.headings, self.imgs = [], []
+        self.title, self.description = None, None
+        self.zone = []
+        self.cur = None       # ссылка, текст которой сейчас собирается
+        self.head = None      # заголовок, текст которого сейчас собирается
+        self.in_title = False
+
+    def _zone(self):
+        return self.zone[-1] if self.zone else "body"
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if a.get("id"):
             self.ids.add(a["id"])
+            self.id_list.append((a["id"], self._zone(), self.getpos()[0]))
         if tag in ("header", "footer"):
             self.zone.append(tag)
         if tag == "meta" and (a.get("name") or "").lower() == "robots":
             self.robots.append(a.get("content") or "")
+        if tag == "meta" and (a.get("name") or "").lower() == "description":
+            self.description = a.get("content") or ""
+        if tag == "title":
+            self.in_title, self.title = True, ""
+        if re.fullmatch(r"h[1-6]", tag):
+            self.head = {"level": int(tag[1]), "text": "", "zone": self._zone(), "line": self.getpos()[0],
+                         "aria": a.get("aria-label") or ""}
+            self.headings.append(self.head)
+        if tag == "img":
+            self.imgs.append({"src": a.get("src") or "", "alt": a.get("alt"), "zone": self._zone(),
+                              "line": self.getpos()[0]})
+            if self.cur is not None:
+                self.cur["text"] += " " + (a.get("alt") or "")  # картинка в ссылке подписывает её своим alt
         if tag in ("a", "link") and "href" in a:
-            zone = self.zone[-1] if self.zone else "body"
-            link = {"href": a["href"] or "", "text": "", "zone": zone, "line": self.getpos()[0], "tag": tag}
+            link = {"href": a["href"] or "", "text": "", "zone": self._zone(), "line": self.getpos()[0],
+                    "tag": tag, "aria": a.get("aria-label") or ""}
             self.links.append(link)
             if tag == "a":
                 self.cur = link
@@ -857,10 +880,18 @@ class PageParser(HTMLParser):
             self.zone.pop()
         if tag == "a":
             self.cur = None
+        if tag == "title":
+            self.in_title = False
+        if re.fullmatch(r"h[1-6]", tag):
+            self.head = None
 
     def handle_data(self, data):
         if self.cur is not None:
             self.cur["text"] += data
+        if self.head is not None:
+            self.head["text"] += data
+        if self.in_title:
+            self.title += data
 
 
 def parse_dist():
@@ -870,6 +901,132 @@ def parse_dist():
         p.feed(f.read_text(encoding="utf-8"))
         pages[f.name] = p
     return pages
+
+
+def dist_is_fresh(data, started, rep):
+    """dist/ должен быть собран из этих данных и сейчас: молча проверить старое — худший исход.
+    check.py стирает dist/ перед сборкой, но это не повод верить ему на слово."""
+    expected = {f"{slug}.html" for slug in data}
+    found = {f.name for f in DIST.glob("*.html")} if DIST.is_dir() else set()
+    problems = []
+    if not found:
+        problems.append("в dist/ нет ни одной страницы")
+    for name in sorted(expected - found):
+        problems.append(f"{name} не собрана, хотя content/{name.removesuffix('.html')}.json есть")
+    for name in sorted(found - expected):
+        problems.append(f"{name} лежит в dist/, а страницы в content/ для неё нет — остаток старой сборки?")
+    # Только .html: build.py копирует assets/ с сохранением даты, а страницы пишет заново.
+    for name in sorted(found & expected):
+        if (DIST / name).stat().st_mtime < started - 1:
+            problems.append(f"{name} собрана не в этом запуске — файл старше начала проверки")
+    if problems:
+        rep.add(BUILD_GROUP, "сборка", "dist/ не совпадает с content/ или устарел — проверки по готовым страницам "
+                                       "не запускались, проверять старое нельзя:\n" +
+                "\n".join("        " + p for p in problems))
+        return False
+    return True
+
+
+TITLE_MAX = 70
+DESCR_MIN, DESCR_MAX = 70, 200
+ARROWS = "→←↑↓↗↘›‹»«·•—–-"
+
+
+def check_html(pages, rep):
+    """Собранный HTML глазами поисковика и того, кто читает не глазами: заголовки, картинки,
+    ссылки, id, title и description. Шапка и подвал одинаковы на всех страницах — их находки
+    выводятся один раз в разделе site.json."""
+    shared = {}
+    titles, descrs = {}, {}
+    for name, p in pages.items():
+        g = page_group(name.removesuffix(".html"))
+
+        def report(zone, kind, msg):
+            if zone == "body":
+                rep.add(g, kind, msg)
+            else:
+                shared.setdefault((kind, msg), set()).add(name)
+
+        # Заголовки. Один h1 — по всей странице; ступени — только в содержании, между шапкой
+        # и подвалом: заголовки подвала одинаковы на всех страницах и в план страницы не входят.
+        h1 = [h for h in p.headings if h["level"] == 1]
+        if len(h1) != 1:
+            where = "; ".join(f"«{short(h['text'])}» (строка {h['line']})" for h in h1)
+            rep.add(g, "заголовки", f"h1 на странице: {len(h1)}, а должен быть ровно один" + (f" — {where}" if h1 else ""))
+        prev = None
+        for h in p.headings:
+            text = " ".join(h["text"].split()) or h["aria"]
+            if not text:
+                report(h["zone"], "заголовки", f"пустой h{h['level']} (строка {h['line']} в dist/{name})")
+            if h["zone"] != "body":
+                continue
+            if prev and h["level"] > prev["level"] + 1:
+                rep.add(g, "заголовки", f"после h{prev['level']} «{short(prev['text'])}» сразу h{h['level']} "
+                                        f"«{short(text)}» — пропущен h{prev['level'] + 1} (строка {h['line']})")
+            prev = h
+
+        # Картинки: у каждой непустой alt. Пустые слоты рисуются заглушкой без <img>.
+        for im in p.imgs:
+            if not (im["alt"] or "").strip():
+                state = "без alt" if im["alt"] is None else "с пустым alt"
+                report(im["zone"], "картинки", f"<img src=\"{im['src']}\"> {state} — для поиска и для читалки "
+                                               f"картинки нет (строка {im['line']})")
+
+        # Ссылки: мусорный адрес и пустой текст. href="" ловится выше, в проверке ссылок.
+        for ln in p.links:
+            if ln["tag"] != "a":
+                continue
+            href = ln["href"].strip()
+            if href == "#" or href.lower().startswith("javascript:"):
+                report(ln["zone"], "ссылка", f"«{short(ln['text']) or ln['aria']}» → {href} — ссылка никуда не ведёт")
+            visible = " ".join(ln["text"].split())
+            core = visible.strip(ARROWS + " ")
+            if not core and not ln["aria"].strip():
+                shown = f"«{visible}»" if visible else "пустая"
+                report(ln["zone"], "ссылка", f"ссылка на {href or '(пусто)'} без текста ({shown}) — "
+                                             f"непонятно, куда она ведёт; нужен текст или aria-label")
+            elif len(core) == 1 and not ln["aria"].strip():
+                report(ln["zone"], "ссылка", f"ссылка на {href} с текстом «{visible}» — один знак вместо текста")
+
+        # id уникальны: два блока с одним id — ссылка ведёт то туда, то сюда.
+        seen = {}
+        for i, zone, line in p.id_list:
+            seen.setdefault(i, []).append(line)
+        for i, lines in seen.items():
+            if len(lines) > 1:
+                rep.add(g, "якорь", f"id «{i}» встречается {len(lines)} раза (строки {', '.join(map(str, lines))}) — "
+                                    f"ссылка #{i} ведёт на первый, остальные недостижимы")
+
+        # Для поиска. Длины — ориентир (предупреждение), отсутствие и повтор — ошибка.
+        t = " ".join((p.title or "").split())
+        d = " ".join((p.description or "").split())
+        if not t:
+            rep.add(g, "поле", "<title> пустой или его нет — в выдаче вместо заголовка будет адрес")
+        elif len(t) > TITLE_MAX:
+            rep.add(g, "поиск", f"<title> {len(t)} знаков, ориентир — до {TITLE_MAX}: хвост обрежется в выдаче"
+                                f"\n        «{t}»")
+        if not d:
+            rep.add(g, "поле", "description пустой или его нет — поисковик возьмёт для сниппета случайный кусок текста")
+        elif not DESCR_MIN <= len(d) <= DESCR_MAX:
+            side = f"короче {DESCR_MIN}" if len(d) < DESCR_MIN else f"длиннее {DESCR_MAX} на {len(d) - DESCR_MAX}"
+            rep.add(g, "поиск", f"description {len(d)} знаков — {side}; ориентир {DESCR_MIN}–{DESCR_MAX}"
+                                f"\n        «{d}»")
+        if t:
+            titles.setdefault(t, []).append(name)
+        if d:
+            descrs.setdefault(d, []).append(name)
+
+    for what, table in (("<title>", titles), ("description", descrs)):
+        for text, names in table.items():
+            if len(names) > 1:
+                for n in names:
+                    others = ", ".join(x for x in names if x != n)
+                    rep.add(page_group(n.removesuffix(".html")), "повтор",
+                            f"{what} такой же, как у {others} — страницы отнимают выдачу друг у друга\n        «{short(text, 70)}»")
+
+    for (kind, msg), names in sorted(shared.items()):
+        n = "на всех страницах" if len(names) == len(pages) else "на " + ", ".join(sorted(names))
+        rep.add(SITE_GROUP, kind, f"{msg} — шапка или подвал, {n}")
 
 
 def check_dist(pages, data, known, site_missing, rep):
@@ -959,9 +1116,9 @@ def print_report(rep, stats):
         soft = [i for i in items if i[0] in Report.SOFT_KINDS]
         mark = "✗" if hard else "·"
         tail = f" — {len(hard)}" if hard else ""
-        tail += f" (+{len(soft)} ждут своей страницы)" if soft and hard else ""
+        tail += f" (+{len(soft)} {plural(len(soft), 'предупреждение', 'предупреждения', 'предупреждений')})" if soft and hard else ""
         if soft and not hard:
-            tail = f" — {len(soft)} ждут своей страницы"
+            tail = f" — {len(soft)} {plural(len(soft), 'предупреждение', 'предупреждения', 'предупреждений')}"
         print(f"{mark} {g}{tail}")
         for kind, msg in hard + soft:
             print(f"    [{kind}] {msg}")
@@ -1007,18 +1164,31 @@ def main():
         site_missing = check_site(site, set(data) | broken, rep)
 
     stats = f"страниц в content/: {len(data)}"
-    if build(rep, rep.count() > 0):
+    weights = ""
+    started = time.time()
+    if build(rep, rep.count() > 0) and dist_is_fresh(data, started, rep):
         pages = parse_dist()
         check_dist(pages, data, set(data) | broken, site_missing, rep)
+        check_html(pages, rep)
         links = sum(len(p.links) for p in pages.values())
         stats += f", собрано: {len(pages)}, ссылок проверено: {links}"
+        weights = "Вес страниц: " + ", ".join(
+            f"{n.removesuffix('.html')} {(DIST / n).stat().st_size / 1024:.1f} КБ".replace(".", ",")
+            for n in sorted(pages))
     print_report(rep, stats)
-    if rep.soft() and not rep.hard():
-        print("\nОшибок нет. Предупреждений: "
-              f"{rep.soft()} — это ссылки на страницы, которые ещё не написаны.\n"
-              "Пока идёт первая волна, это рабочее состояние: сборку они не валят.")
-    elif rep.soft():
-        print(f"\nИз них предупреждений: {rep.soft()} (ненаписанные страницы, сборку не валят).")
+    if weights:
+        print(weights)
+    if rep.soft():
+        kinds = {}
+        for items in rep.groups.values():
+            for k, _ in items:
+                if k in Report.SOFT_KINDS:
+                    kinds[k] = kinds.get(k, 0) + 1
+        what = {"ненаписанная страница": "ссылки на ещё не написанные страницы",
+                "поиск": "длина title или description вне ориентира"}
+        lines = "\n".join(f"  {n} — {what.get(k, k)}" for k, n in sorted(kinds.items()))
+        head = "Ошибок нет. Предупреждения" if not rep.hard() else "Из них предупреждения"
+        print(f"\n{head} (сборку не валят):\n{lines}")
     sys.exit(1 if rep.hard() else 0)
 
 

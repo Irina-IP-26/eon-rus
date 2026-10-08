@@ -35,7 +35,8 @@
 
 - `work/html-check` — проверка собранных страниц: заголовки, alt, якоря,
   title и description для поиска.
-  Задача: `_tasks/html-check.md`.
+  Задача: `_tasks/html-check.md`. **Готово, ждёт приёмки** —
+  отчёт `_log/2026-10-08-проверка-html.md`.
 
 Принято и влито: `work/check` (инструмент проверки), `work/check-planned`
 (список ожидаемых страниц), `work/table-block` (блок каталожной таблицы),
