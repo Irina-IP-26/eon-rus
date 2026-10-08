@@ -84,7 +84,8 @@
           "key": "cap",
           "label": "Ёмкость",
           "align": "right",
-          "mono": true
+          "mono": true,
+          "bounds": true
         }
       ],
       "groups": [
