@@ -1102,6 +1102,10 @@ def check_dist(pages, data, known, site_missing, rep):
                 continue
             else:
                 target, _, anchor = href.partition("#")
+                # отпечаток содержимого в адресе (style.css?v=dbad3cd9)
+                # к имени файла не относится: сборка добавляет его, чтобы
+                # вернувшийся посетитель не получил вчерашние стили из кеша
+                target = target.partition("?")[0]
                 problem = None
                 if target and not (DIST / target).is_file():
                     if link["zone"] != "body" and target in site_missing:

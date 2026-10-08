@@ -7,7 +7,7 @@
 
 Запуск:  python3 build.py
 """
-import json, html, pathlib, re, shutil, sys
+import hashlib, json, html, pathlib, re, shutil, sys
 
 ROOT = pathlib.Path(__file__).parent
 CONTENT = ROOT / "content"
@@ -324,6 +324,21 @@ def _plate_card(p):
 
 # ─────────────────────────── шапка, подвал, каркас ───────────────────────────
 
+def stamp(name):
+    """Короткий отпечаток содержимого файла для адреса.
+
+    Браузер кеширует style.css и скрипты по имени. Пока имя не менялось,
+    вернувшийся посетитель видит вчерашние стили, даже если мы их сегодня
+    переписали. Отпечаток меняется вместе с содержимым — и только вместе
+    с ним, так что кеш работает как задумано, но не врёт.
+    """
+    f = ASSETS / name
+    if not f.exists():
+        return name
+    h = hashlib.sha1(f.read_bytes()).hexdigest()[:8]
+    return f"{name}?v={h}"
+
+
 def logo_defs(site):
     """Контуры логотипа один раз на страницу, в скрытом <symbol>.
 
@@ -425,7 +440,7 @@ PAGE = """<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="{css}">
 </head>
 <body>
 {logo_defs}
@@ -453,7 +468,7 @@ def render(page, site):
         src = BLOCK_SCRIPTS.get(b["type"])
         if src and src not in needed:
             needed.append(src)
-    extra_scripts = "".join(f'\n<script src="{s}" defer></script>' for s in needed)
+    extra_scripts = "".join(f'\n<script src="{stamp(s)}" defer></script>' for s in needed)
     for b in page["blocks"]:
         fn = BLOCKS.get(b["type"])
         if fn is None:
@@ -461,6 +476,7 @@ def render(page, site):
         body.append(fn(b))
     return PAGE.format(
         title=e(page["title"]), descr=e(page.get("description", "")),
+        css=stamp("style.css"),
         draft=site["draft"], logo_defs=logo_defs(site),
         header=header(site, page["slug"] + ".html"),
         body="\n".join(body), footer=footer(site),
