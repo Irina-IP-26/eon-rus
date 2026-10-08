@@ -7,7 +7,7 @@
 
 Запуск:  python3 build.py
 """
-import json, html, pathlib, shutil, sys
+import json, html, pathlib, re, shutil, sys
 
 ROOT = pathlib.Path(__file__).parent
 CONTENT = ROOT / "content"
@@ -155,10 +155,46 @@ def b_form(b):
 </section>"""
 
 
+def b_table(b):
+    """Каталожная таблица: колонки из columns, строки — в groups[].rows или прямо в rows.
+
+    Настоящий <table>, чтобы таблица оставалась таблицей для экранных читалок:
+    первая колонка — заголовок строки, заголовок группы — строка <th> в начале
+    своего <tbody>. Узкий экран прокручивает таблицу внутри .tbl, а не страницу.
+    """
+    cols = b["columns"]
+
+    def c(col):
+        k = cls("r" if col.get("align") == "right" else "", "m" if col.get("mono") else "")
+        return f' class="{k}"' if k else ""
+
+    def cell(row, n, col):
+        v = row.get(col["key"])
+        v = "" if v is None else v
+        if n == 0:
+            return f'<th scope="row"{c(col)}>{e(v)}</th>'
+        return f'<td{c(col)}>{e(v)}</td>'
+
+    head = "".join(f'<th scope="col"{c(col)}>{e(col["label"])}</th>' for col in cols)
+    groups = b["groups"] if b.get("groups") else [{"rows": b["rows"]}]
+    body = []
+    for g in groups:
+        title = (f'<tr class="tbl-group"><th colspan="{len(cols)}" scope="rowgroup">{e(g["title"])}</th></tr>'
+                 if g.get("title") else "")
+        rows = "".join(f'<tr>{"".join(cell(r, n, col) for n, col in enumerate(cols))}</tr>' for r in g["rows"])
+        body.append(f"<tbody>{title}{rows}</tbody>")
+    # Подпись области прокрутки для читалок: заголовок раздела без разметки.
+    label = " ".join(str(b.get(k, "")) for k in ("h2", "h2q")).strip() or b.get("eyebrow") or "Таблица"
+    label = e(" ".join(html.unescape(re.sub(r"<[^>]*>", " ", label)).split()))
+    return (f'<section{_pad(b)}><div class="wrap">{_head(b)}'
+            f'<div class="tbl" role="region" aria-label="{label}" tabindex="0">'
+            f'<table><thead><tr>{head}</tr></thead>{"".join(body)}</table></div></div></section>')
+
+
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
     "steps": b_steps, "cases": b_cases, "plates": b_plates, "faq": b_faq,
-    "circuit": b_circuit, "form": b_form,
+    "circuit": b_circuit, "form": b_form, "table": b_table,
 }
 
 # ───────────────────────── вспомогательная вёрстка ─────────────────────────

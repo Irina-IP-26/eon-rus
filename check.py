@@ -38,8 +38,14 @@ ITEM_FIELDS = {
     "faq": ["q", "a"],
 }
 BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"]}
-BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form"}
-HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form"}  # шапка раздела через _head()
+BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table"}
+HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table"}  # шапка раздела через _head()
+TABLE_ALIGN = {"right"}  # по умолчанию — влево; другого выравнивания у колонки не бывает
+
+# Ячейка таблицы: blocks[N].rows[M].<колонка> или blocks[N].groups[K].rows[M].<колонка>.
+# Колонку могут назвать как угодно — text, v, href, — поэтому разметку в ячейках
+# проверяем по месту, а не по имени ключа: в ячейке не работает никакая.
+TABLE_CELL_RE = re.compile(r"^blocks\[(\d+)\]\.(?:groups\[\d+\]\.)?rows\[\d+\]\.[^.\[]+$")
 CIRCUIT_SYMBOLS = {"saw", "cap", "dot"}
 CARD_FILLS = {"accent", "slate"}
 
@@ -202,6 +208,89 @@ def check_page_fields(slug, page, rep):
             if bad:
                 rep.add(g, "поле", f"{where}: неизвестные символы {bad} — бывают saw, cap, dot")
 
+        if t == "table":
+            check_table(b, where, g, rep, need)
+
+
+def check_table(b, where, g, rep, need):
+    """Блок table: колонки, группы, строки. Главное — ключ строки, которого нет
+    в columns: build.py такую ячейку не выведет, и значение пропадёт молча."""
+    cols = b.get("columns")
+    keys = []
+    if not isinstance(cols, list) or not cols:
+        rep.add(g, "поле", f"{where}: нет колонок (поле «columns» отсутствует или пустое)")
+        cols = []
+    for n, col in enumerate(cols):
+        cw = f"{where}, columns[{n}]"
+        if not isinstance(col, dict):
+            rep.add(g, "поле", f"{cw}: колонка должна быть объектом {{\"key\": …, \"label\": …}}")
+            continue
+        need(col, ["key", "label"], cw)
+        k = col.get("key")
+        if not empty(k):
+            if k in keys:
+                rep.add(g, "поле", f"{cw}: ключ «{k}» повторяется — у двух колонок были бы одни и те же значения")
+            keys.append(k)
+        if col.get("align") is not None and col["align"] not in TABLE_ALIGN:
+            rep.add(g, "поле", f"{cw}: align «{col['align']}» — бывает только \"right\" (по умолчанию влево)")
+
+    has_groups, has_rows = "groups" in b, "rows" in b
+    if has_groups and has_rows:
+        rep.add(g, "поле", f"{where}: есть и «groups», и «rows» — должно быть что-то одно; "
+                           f"строки из «rows» при группах на страницу не попадут")
+    if has_groups:
+        groups = b["groups"]
+        if not isinstance(groups, list) or not groups:
+            rep.add(g, "поле", f"{where}: «groups» пустой — в таблице нет ни одной строки")
+            groups = []
+        named = []
+        for k, grp in enumerate(groups):
+            gw = f"{where}, groups[{k}]"
+            if not isinstance(grp, dict):
+                rep.add(g, "поле", f"{gw}: группа должна быть объектом {{\"title\": …, \"rows\": […]}}")
+                continue
+            need(grp, ["title"], gw)
+            if not empty(grp.get("title")):
+                gw = f"{where}, группа «{short(grp['title'])}»"
+            named.append((gw, grp.get("rows")))
+    elif has_rows:
+        named = [(where, b["rows"])]
+    else:
+        rep.add(g, "поле", f"{where}: нет строк — нужно «rows» или «groups»")
+        named = []
+
+    extra = {}  # ключ, которого нет в columns → строки, где он встретился
+    for gw, rows in named:
+        if not isinstance(rows, list) or not rows:
+            rep.add(g, "поле", f"{gw}: нет строк (поле «rows» отсутствует или пустое)")
+            continue
+        for m, row in enumerate(rows):
+            if not isinstance(row, dict):
+                rep.add(g, "поле", f"{gw}, строка {m + 1}: строка должна быть объектом {{колонка: значение}}")
+                continue
+            first = row.get(keys[0]) if keys else None
+            rw = f"{gw}, строка {m + 1}" + (f" («{short(first)}»)" if not empty(first) else "")
+            for k in row:
+                if keys and k not in keys:
+                    extra.setdefault(k, []).append(rw)
+            for k, v in row.items():
+                if isinstance(v, (dict, list)):
+                    rep.add(g, "поле", f"{rw}: в ячейке «{k}» не текст, а {'список' if isinstance(v, list) else 'объект'}")
+            if keys and all(empty(row.get(k)) for k in keys):
+                rep.add(g, "поле", f"{rw}: строка пустая — ни одна ячейка не заполнена")
+
+    # Одна строка на ключ, а не на каждую строку таблицы: опечатку в имени колонки
+    # обычно копируют во все строки, и двадцать одинаковых сообщений её только прячут.
+    for k, where_rows in extra.items():
+        n, cols_list = len(where_rows), ", ".join(keys)
+        if n == 1:
+            rep.add(g, "поле", f"{where_rows[0]}: ключа «{k}» нет в columns — ячейка не отрисуется, "
+                               f"значение пропадёт; колонки: {cols_list}")
+        else:
+            first = where_rows[0].removeprefix(where + ", ")
+            rep.add(g, "поле", f"{where}: ключа «{k}» нет в columns, а он есть в {n} строках "
+                               f"(первая: {first}) — эти ячейки не отрисуются; колонки: {cols_list}")
+
 
 def check_plate(p, where, need):
     """Табличка (с rows) или карточка рядом с ней (без rows) — у них разный минимум."""
@@ -243,11 +332,12 @@ def readable_path(page, path):
     return f"{label}, {m.group(2)}" if m.group(2) else label
 
 
-def markup_problems(key, value):
-    """Пункт 6: что не так с разметкой в одном текстовом поле. → [(сообщение, позиция)]"""
+def markup_problems(key, value, cell=False):
+    """Пункт 6: что не так с разметкой в одном текстовом поле. → [(сообщение, позиция)]
+    cell — ячейка таблицы: разметка в ней не работает никакая, как бы ни звалась колонка."""
     out = []
     tags = list(TAG_RE.finditer(value))
-    if key in RAW_FIELDS:
+    if key in RAW_FIELDS and not cell:
         bad = [m for m in tags if m.group(2).lower() not in ALLOWED_TAGS]
         if bad:
             names = ", ".join(dict.fromkeys(m.group(0) for m in bad))
@@ -266,7 +356,8 @@ def markup_problems(key, value):
         if found:
             found.sort(key=lambda m: m.start())
             names = ", ".join(dict.fromkeys(m.group(0) for m in found))
-            out.append((f"{names} в поле «{key}», где разметка не работает — "
+            where = f"в ячейке «{key}»" if cell else f"в поле «{key}»"
+            out.append((f"{names} {where}, где разметка не работает — "
                         f"на сайте будет видно как текст", found[0].start()))
     return out
 
@@ -280,12 +371,21 @@ def snippet(value, pos, n=70):
     return ("…" if a else "") + value[a:a + n] + ("…" if a + n < len(value) else "")
 
 
+def _block_type(page, i):
+    try:
+        return page["blocks"][i].get("type")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return None
+
+
 def check_page_markup(slug, page, rep):
     g = page_group(slug)
     for path, key, value in walk_strings(page):
-        if key in NOT_TEXT:
+        m = TABLE_CELL_RE.match(path)
+        cell = bool(m) and _block_type(page, int(m.group(1))) == "table"
+        if key in NOT_TEXT and not cell:
             continue
-        for msg, pos in markup_problems(key, value):
+        for msg, pos in markup_problems(key, value, cell):
             rep.add(g, "разметка", f"{readable_path(page, path)}: {msg}\n        значение: «{snippet(value, pos)}»")
 
 
