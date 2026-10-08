@@ -409,7 +409,7 @@ NUM = r"\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?"
 UNIT = r"°?[A-Za-zА-Яа-яЁё]+(?:[-·⋅*.][A-Za-zА-Яа-яЁё]+)*(?![\dA-Za-zА-Яа-яЁё])"
 # Число не должно продолжать слово или другое число: «ЕОН-24В150-Т» — артикул, не «150».
 def _n(name):
-    return rf"(?<![\dA-Za-zА-Яа-яЁё.,])(?P<{name}>[−+-]?(?:{NUM}))\+?"
+    return rf"(?<![\dA-Za-zА-Яа-яЁё.,])(?P<{name}>[−+-]?(?:{NUM}))(?P<{name}plus>\+)?"
 RANGE_FROM_RE = re.compile(rf"\bот\s+{_n('x')}\s*(?P<ux>{UNIT})?\s*до\s+{_n('y')}\s*(?P<uy>{UNIT})", re.I)
 RANGE_DASH_RE = re.compile(rf"{_n('x')}\s*(?P<ux>{UNIT})?\s*[–—…-]\s*{_n('y')}\s*(?P<uy>{UNIT})")
 SINGLE_RE = re.compile(rf"{_n('n')}\s*(?P<u>{UNIT})")
@@ -477,51 +477,134 @@ def table_bounds(page, g, rep):
     return out
 
 
-def check_bounds(slug, page, rep):
-    """Числа с единицей из колонки bounds в тексте страницы — против таблицы."""
-    if not isinstance(page, dict):
-        return
-    g = page_group(slug)
-    bounds = table_bounds(page, g, rep)
-    if not bounds:
-        return  # таблицы с отметкой bounds нет — сверять не с чем
-    for path, key, value in walk_strings(page):
-        if key in NOT_TEXT or key in ("src", "key", "align") or TABLE_CELL_RE.match(path) \
-                or re.search(r"\.columns\[\d+\]\.", path):
-            continue
-        text, taken, where = plain(value), [], readable_path(page, path)
-        for rx in (RANGE_FROM_RE, RANGE_DASH_RE):
-            for m in rx.finditer(text):
-                if any(a < m.end() and m.start() < b for a, b in taken):
-                    continue
-                u = norm_unit(m.group("uy"))
-                if m.group("ux") and norm_unit(m.group("ux")) != u:
-                    continue  # «от 5 кВт до 10 кВт·ч» — не диапазон одной величины
-                taken.append(m.span())
-                if u not in bounds:
-                    continue
-                vals = bounds[u]["vals"]
-                lo, hi = min(vals), max(vals)
-                x, y = num(m.group("x")), num(m.group("y"))
-                bad = []
-                if x != lo:
-                    bad.append(f"нижняя граница {fmt(x)}, а минимум таблицы {fmt(lo)} ({vals[lo]})")
-                if y != hi:
-                    bad.append(f"верхняя граница {fmt(y)}, а максимум таблицы {fmt(hi)} ({vals[hi]})")
-                if bad:
-                    rep.add(g, "диапазон", f"{where}: «{m.group(0).strip()}» — {'; '.join(bad)}\n"
-                                           f"        по таблице: от {fmt(lo)} до {fmt(hi)} {bounds[u]['unit']}"
-                                           f" (колонка «{bounds[u]['col']}», {len(vals)} "
-                                           f"{plural(len(vals), 'значение', 'значения', 'значений')})")
-        for m in SINGLE_RE.finditer(text):
+# Слово перед одиночным числом, которое делает его заявлением о крае линейки.
+# «не более N» и «не менее N» сюда НЕ входят: это обещание на каждое изделие
+# («ресурс не менее 3000 циклов» — ни одна батарея не хуже), а не край ряда.
+CLAIM_UPPER_RE = re.compile(r"(?:^|[^\wА-Яа-яЁё])(?:до|свыше|более)\s+$", re.I)
+CLAIM_LOWER_RE = re.compile(r"(?:^|[^\wА-Яа-яЁё])от\s+$", re.I)
+NOT_CLAIM_RE = re.compile(r"(?:^|[^\wА-Яа-яЁё])не\s+(?:более|менее)\s+$", re.I)
+BOUNDS_SKIP = {"src", "key", "align", "bounds_ignore"}
+
+
+def bound_problems(text, bounds):
+    """Расхождения чисел в тексте с границами таблицы → [(фрагмент, что не так, единица)]."""
+    out, taken = [], []
+    for rx in (RANGE_FROM_RE, RANGE_DASH_RE):
+        for m in rx.finditer(text):
             if any(a < m.end() and m.start() < b for a, b in taken):
                 continue
-            u = norm_unit(m.group("u"))
-            if u in bounds and num(m.group("n")) not in bounds[u]["vals"]:
-                vals = bounds[u]["vals"]
-                rep.add(g, "диапазон", f"{where}: «{m.group(0).strip()}» — такого значения в таблице нет\n"
-                                       f"        по таблице: от {fmt(min(vals))} до {fmt(max(vals))} "
-                                       f"{bounds[u]['unit']}, значения: {', '.join(fmt(v) for v in sorted(vals))}")
+            u = norm_unit(m.group("uy"))
+            if m.group("ux") and norm_unit(m.group("ux")) != u:
+                continue  # «от 5 кВт до 10 кВт·ч» — не диапазон одной величины
+            taken.append(m.span())
+            if u not in bounds:
+                continue
+            vals = bounds[u]["vals"]
+            lo, hi = min(vals), max(vals)
+            x, y = num(m.group("x")), num(m.group("y"))
+            bad = []
+            if x != lo:
+                bad.append(f"нижняя граница {fmt(x)}, а минимум таблицы {fmt(lo)} ({vals[lo]})")
+            if y != hi:
+                bad.append(f"верхняя граница {fmt(y)}, а максимум таблицы {fmt(hi)} ({vals[hi]})")
+            if bad:
+                out.append((m.group(0).strip(), "; ".join(bad), u))
+    for m in SINGLE_RE.finditer(text):
+        if any(a < m.end() and m.start() < b for a, b in taken):
+            continue
+        u = norm_unit(m.group("u"))
+        if u not in bounds:
+            continue
+        vals, n, before = bounds[u]["vals"], num(m.group("n")), text[:m.start()]
+        lo, hi = min(vals), max(vals)
+        phrase = m.group(0).strip()
+        if NOT_CLAIM_RE.search(before):
+            claim = None
+        elif m.group("nplus") or CLAIM_UPPER_RE.search(before):
+            claim = "upper"
+        elif CLAIM_LOWER_RE.search(before):
+            claim = "lower"
+        else:
+            claim = None
+        if claim:
+            word = re.search(r"(до|свыше|более|от)\s+$", before, re.I)
+            phrase = (word.group(1) + " " if word else "") + phrase
+        if claim == "upper" and n != hi:
+            out.append((phrase, f"заявлена верхняя граница {fmt(n)}, а максимум таблицы {fmt(hi)} ({vals[hi]})", u))
+        elif claim == "lower" and n != lo:
+            out.append((phrase, f"заявлена нижняя граница {fmt(n)}, а минимум таблицы {fmt(lo)} ({vals[lo]})", u))
+        elif claim is None and n not in vals:
+            out.append((phrase, "такого значения в таблице нет", u))
+    return out
+
+
+def link_target(d, here):
+    """Страница, к которой объект относится по своей ссылке: href, link.href, button.href.
+    Ссылка на свою же страницу (или якорь на ней) текст никуда не переносит."""
+    for h in (d.get("href"), (d.get("link") or {}).get("href") if isinstance(d.get("link"), dict) else None,
+              (d.get("button") or {}).get("href") if isinstance(d.get("button"), dict) else None):
+        if isinstance(h, str) and h and not is_external(h):
+            page = h.partition("#")[0]
+            if page.endswith(".html") and page.removesuffix(".html") != here:
+                return page.removesuffix(".html")
+    return None
+
+
+def bound_texts(obj, here, path="", owner=None, ignore=None, rep=None, group=None, page=None):
+    """Тексты для сверки: (путь, значение, чья страница, исключение bounds_ignore или None).
+    Объект со ссылкой на другую страницу отдаёт свой текст ей — и всё внутри него."""
+    if isinstance(obj, dict):
+        target = link_target(obj, here)
+        if target:
+            owner = target
+        if "bounds_ignore" in obj:
+            if obj["bounds_ignore"] is True:
+                ignore = path or "страница"
+            else:
+                rep.add(group, "диапазон", f"{readable_path(page, path) if page else path}: bounds_ignore = "
+                                           f"{obj['bounds_ignore']!r} — бывает только true")
+        for k, v in obj.items():
+            if k in NOT_TEXT or k in BOUNDS_SKIP:
+                continue
+            yield from bound_texts(v, here, f"{path}.{k}" if path else k, owner, ignore, rep, group, page)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from bound_texts(v, here, f"{path}[{i}]", owner, ignore, rep, group, page)
+    elif isinstance(obj, str):
+        if TABLE_CELL_RE.match(path) or re.search(r"(?:^|\.)columns\[\d+\]\.", path):
+            return
+        yield path, obj, owner, ignore
+
+
+def check_bounds_in(data, here, group, all_bounds, rep, page=None):
+    """Правила границ для одного файла данных: страницы (here = её slug) или site.json (here = None)."""
+    used, ignores = set(), set()
+    for path, value, owner, ignore in bound_texts(data, here, owner=here, rep=rep, group=group, page=page):
+        if ignore:
+            ignores.add(ignore)
+        bounds = all_bounds.get(owner)
+        if not bounds:
+            continue  # у страницы, к которой относится текст, нет таблицы с bounds — сверять не с чем
+        problems = bound_problems(plain(value), bounds)
+        if problems and ignore:
+            used.add(ignore)
+            continue
+        where = readable_path(page, path) if page else path
+        src = " таблице" if owner == here else f" таблице страницы {owner}.html"
+        for phrase, msg, u in problems:
+            vals = bounds[u]["vals"]
+            line = f"{where}: «{phrase}» — {msg}\n        по{src}: от {fmt(min(vals))} до {fmt(max(vals))} {bounds[u]['unit']}"
+            if msg.startswith("такого"):
+                line += f", значения: {', '.join(fmt(v) for v in sorted(vals))}"
+            else:
+                line += f" (колонка «{bounds[u]['col']}», {len(vals)} {plural(len(vals), 'значение', 'значения', 'значений')})"
+            line += "\n        если фраза не про края линейки — \"bounds_ignore\": true у этого элемента"
+            rep.add(group, "диапазон", line)
+    # Исключение, которое ничего не глушит, — мусор, который однажды прикроет настоящую ошибку.
+    for ig in sorted(ignores - used):
+        where = readable_path(page, ig) if page and ig != "страница" else ig
+        rep.add(group, "диапазон", f"{where}: bounds_ignore ничего не глушит — без него здесь и так чисто; "
+                                   f"уберите, чтобы оно не прикрыло настоящую ошибку потом")
 
 
 def site_links(site):
@@ -781,7 +864,15 @@ def main():
     for slug, page in data.items():
         check_page_fields(slug, page, rep)
         check_page_markup(slug, page, rep)
-        check_bounds(slug, page, rep)
+    # Границы: сначала таблицы всех страниц, потом тексты — текст со ссылкой
+    # на другую страницу сверяется с её таблицей.
+    all_bounds = {slug: table_bounds(page, page_group(slug), rep)
+                  for slug, page in data.items() if isinstance(page, dict)}
+    for slug, page in data.items():
+        if isinstance(page, dict):
+            check_bounds_in(page, slug, page_group(slug), all_bounds, rep, page)
+    if site is not None:
+        check_bounds_in(site, None, SITE_GROUP, all_bounds, rep)
     if site is not None:
         # страница с битым JSON существует, просто не читается — об этом уже сказано выше
         site_missing = check_site(site, set(data) | broken, rep)
