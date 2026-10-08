@@ -6,12 +6,16 @@
 обязательные поля, лишнюю разметку, меню и подвал, сборку, ссылки между
 страницами, якоря и закрытость от индексации.
 
-Запуск:  python3 check.py   (из корня репозитория, без аргументов)
-Код возврата: 0 — ошибок нет (предупреждения о страницах из PLANNED не в счёт),
-1 — есть ошибки.
+Запуск:  python3 check.py             (из корня репозитория)
+         python3 check.py --release   то же плюс список требований к выпуску: сайт открыт
+                                      для поиска, ПРОВЕРИТЬ.md пуст, приёмник формы задан…
+Код возврата: 0 — ошибок нет (предупреждения не в счёт), 1 — есть ошибки
+(с --release — или не выполнено хоть одно требование к выпуску).
 """
-import difflib, html, json, pathlib, re, shutil, subprocess, sys, time
+import datetime, difflib, html, json, pathlib, re, shutil, subprocess, sys, time
+import xml.etree.ElementTree as ET
 from imgsize import image_size
+from seo import origin, page_url
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).parent
@@ -96,6 +100,7 @@ def page_group(slug):
 SITE_GROUP = "content/site.json  (шапка, меню и подвал — на всех страницах)"
 BUILD_GROUP = "Сборка (python3 build.py)"
 ROBOTS_GROUP = "dist/robots.txt"
+SITEMAP_GROUP = "dist/sitemap.xml"
 
 
 def is_external(href):
@@ -837,6 +842,11 @@ class PageParser(HTMLParser):
         self.ids, self.id_list, self.links, self.robots = set(), [], [], []
         self.headings, self.imgs = [], []
         self.title, self.description = None, None
+        self.canonicals = []  # (href, строка) всех <link rel="canonical">
+        self.og = {}          # og:… → [(content, строка)]
+        self.draft = []       # тексты полос class="draft" («макет, закрыт от индексации»)
+        self.endpoints = []   # data-endpoint каждой формы заявки
+        self.in_draft = False
         self.zone = []
         self.cur = None       # ссылка, текст которой сейчас собирается
         self.head = None      # заголовок, текст которого сейчас собирается
@@ -859,6 +869,15 @@ class PageParser(HTMLParser):
             self.robots.append(a.get("content") or "")
         if tag == "meta" and (a.get("name") or "").lower() == "description":
             self.description = a.get("content") or ""
+        if tag == "meta" and (a.get("property") or "").lower().startswith("og:"):
+            self.og.setdefault(a["property"].lower(), []).append((a.get("content") or "", self.getpos()[0]))
+        if tag == "link" and "canonical" in (a.get("rel") or "").lower().split():
+            self.canonicals.append((a.get("href") or "", self.getpos()[0]))
+        if tag == "div" and "draft" in (a.get("class") or "").split():
+            self.in_draft = True
+            self.draft.append("")
+        if tag == "form" and "form" in (a.get("class") or "").split():
+            self.endpoints.append(a.get("data-endpoint") or "")
         if tag == "title":
             self.in_title, self.title = True, ""
         if re.fullmatch(r"h[1-6]", tag):
@@ -885,6 +904,8 @@ class PageParser(HTMLParser):
             self.section = ""
         if tag == "a":
             self.cur = None
+        if tag == "div":
+            self.in_draft = False  # внутри полосы только текст и <b>, вложенных div в ней нет
         if tag == "title":
             self.in_title = False
         if re.fullmatch(r"h[1-6]", tag):
@@ -897,6 +918,8 @@ class PageParser(HTMLParser):
             self.head["text"] += data
         if self.in_title:
             self.title += data
+        if self.in_draft:
+            self.draft[-1] += data
 
 
 def parse_dist():
@@ -1115,8 +1138,9 @@ def check_html(pages, rep):
     return images
 
 
-def check_dist(pages, data, known, site_missing, rep):
-    """Пункты 2, 3, 7: ссылки, якоря, noindex на каждой странице."""
+def check_dist(pages, data, known, site_missing, rep, closed=True):
+    """Пункты 2, 3, 7: ссылки, якоря, noindex на каждой странице.
+    closed=False — режим --release: закрытость не требуется, её отсутствие проверяет release_checks."""
     shared = {}  # ошибки шапки/подвала: одинаковы на всех страницах, выводятся один раз
     for name, p in pages.items():
         slug = name.removesuffix(".html")
@@ -1172,7 +1196,7 @@ def check_dist(pages, data, known, site_missing, rep):
             rep.add(g, kind, line)
 
         # Пункт 7: noindex на каждой странице.
-        if not any("noindex" in c.lower() for c in p.robots):
+        if closed and not any("noindex" in c.lower() for c in p.robots):
             got = f" (стоит: {p.robots[0]!r})" if p.robots else ""
             rep.add(g, "индексация", f"нет <meta name=\"robots\" content=\"noindex…\">{got} — "
                                      f"страница открыта для поисковиков")
@@ -1183,6 +1207,8 @@ def check_dist(pages, data, known, site_missing, rep):
 
     # Пункт 7: robots.txt запрещает обход целиком.
     robots = DIST / "robots.txt"
+    if not closed:
+        return
     if not robots.is_file():
         rep.add(ROBOTS_GROUP, "индексация", "файла нет — сайт открыт для обхода")
     else:
@@ -1190,6 +1216,329 @@ def check_dist(pages, data, known, site_missing, rep):
         if "user-agent: *" not in lines or "disallow: /" not in lines:
             rep.add(ROBOTS_GROUP, "индексация", "нет пары «User-agent: *» + «Disallow: /» — "
                                                 "сайт открыт для обхода")
+
+
+# ─────────────────────────── адреса, карточки, карта сайта ───────────────────────────
+
+# Без этих свойств карточка в мессенджере неполная: заголовок, описание, адрес, тип, имя сайта.
+OG_REQUIRED = ("og:title", "og:description", "og:url", "og:type", "og:site_name")
+SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+LASTMOD_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2}))?$")
+
+
+def robots_rules(text):
+    """robots.txt → [(агенты группы, правило, значение)] и список строк Sitemap:."""
+    rules, sitemaps, agents, fresh = [], [], [], True
+    for line in text.splitlines():
+        line = line.split("#")[0].strip()
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key, value = key.strip().lower(), value.strip()
+        if key == "sitemap":
+            sitemaps.append(value)
+        elif key == "user-agent":
+            if not fresh:
+                agents, fresh = [], True
+            agents.append(value)
+        else:
+            fresh = False
+            rules.append((tuple(agents), key, value))
+    return rules, sitemaps
+
+
+def read_sitemap():
+    """dist/sitemap.xml → (адреса [(loc, lastmod)], ошибка) или (None, None), если файла нет."""
+    f = DIST / "sitemap.xml"
+    if not f.is_file():
+        return None, None
+    try:
+        root = ET.parse(f).getroot()
+    except ET.ParseError as err:
+        return [], f"файл не читается как XML: {err}"
+    if root.tag != f"{{{SITEMAP_NS}}}urlset":
+        return [], f"корневой элемент {root.tag}, а должен быть <urlset xmlns=\"{SITEMAP_NS}\">"
+    out = []
+    for u in root.findall(f"{{{SITEMAP_NS}}}url"):
+        loc = (u.findtext(f"{{{SITEMAP_NS}}}loc") or "").strip()
+        lastmod = u.findtext(f"{{{SITEMAP_NS}}}lastmod")
+        out.append((loc, lastmod.strip() if lastmod is not None else None))
+    return out, None
+
+
+def check_seo(pages, site, rep):
+    """Канонический адрес, Open Graph, карта сайта, строка Sitemap: в robots.txt.
+    Обычный прогон проверяет только то, что уже есть: пока build.py их не выводит, молчит.
+    Отсутствие — забота --release. → {"no_canonical", "no_og": [страницы], "sitemap": адреса или None}"""
+    found = {"no_canonical": [], "no_og": [], "sitemap": None}
+    if not site or not str(site.get("domain") or "").strip():
+        return found
+    domain = site["domain"]
+    urls = {page_url(domain, n.removesuffix(".html")): n for n in pages}
+    canon = {}
+    for name, p in pages.items():
+        slug = name.removesuffix(".html")
+        g = page_group(slug)
+        own = page_url(domain, slug)
+
+        if not p.canonicals:
+            found["no_canonical"].append(name)
+        if len(p.canonicals) > 1:
+            lines = ", ".join(str(l) for _, l in p.canonicals)
+            rep.add(g, "адрес", f"<link rel=\"canonical\"> стоит {len(p.canonicals)} раза (строки {lines}) — "
+                                f"поисковик не знает, какому верить, и может не поверить ни одному")
+        for href, line in p.canonicals[:1]:
+            if not re.match(r"^https?://", href):
+                rep.add(g, "адрес", f"canonical «{href}» не абсолютный — нужен полный адрес {own} (строка {line})")
+            elif href != own:
+                other = urls.get(href)
+                why = (f"ведёт на {other}: поисковик склеит страницы и эту покажет как копию"
+                       if other else f"ведёт не на эту страницу, а должен — на {own}")
+                rep.add(g, "адрес", f"canonical «{href}» {why} (строка {line})")
+            else:
+                canon.setdefault(href, []).append(name)
+
+        if not p.og:
+            found["no_og"].append(name)
+            continue
+        for prop in OG_REQUIRED:
+            vals = [v for v, _ in p.og.get(prop, [])]
+            if not vals or not vals[0].strip():
+                rep.add(g, "карточка", f"нет {prop} — карточка ссылки в мессенджере будет неполной")
+        for prop, vals in sorted(p.og.items()):
+            if len(vals) > 1 and not prop.startswith("og:image"):
+                rep.add(g, "карточка", f"{prop} стоит {len(vals)} раза (строки {', '.join(str(l) for _, l in vals)}) — "
+                                       f"мессенджер возьмёт какой захочет")
+        url = (p.og.get("og:url") or [("", 0)])[0][0]
+        if url and url != own:
+            rep.add(g, "карточка", f"og:url «{url}» не совпадает с адресом страницы {own} — "
+                                   f"в мессенджере карточка поведёт не туда")
+        for img, line in p.og.get("og:image", []):
+            if not re.match(r"^https?://", img):
+                rep.add(g, "карточка", f"og:image «{img}» не абсолютный — мессенджер картинку не найдёт (строка {line})")
+            elif img.startswith(origin(domain) + "/"):
+                path = DIST / img[len(origin(domain)) + 1:].split("?")[0]
+                if not path.is_file():
+                    rep.add(g, "карточка", f"og:image «{img}» — файла dist/{path.relative_to(DIST)} нет (строка {line})")
+
+    for href, names in canon.items():
+        if len(names) > 1:
+            rep.add(SITE_GROUP, "адрес", f"canonical {href} у нескольких страниц: {', '.join(names)}")
+
+    entries, err = read_sitemap()
+    if err:
+        rep.add(SITEMAP_GROUP, "карта сайта", err)
+    if entries is not None:
+        found["sitemap"] = [loc for loc, _ in entries]
+        seen, today = set(), datetime.date.today().isoformat()
+        for loc, lastmod in entries:
+            if not loc:
+                rep.add(SITEMAP_GROUP, "карта сайта", "<url> без <loc>")
+                continue
+            if loc in seen:
+                rep.add(SITEMAP_GROUP, "карта сайта", f"{loc} записан дважды")
+            seen.add(loc)
+            if not re.match(r"^https?://", loc):
+                rep.add(SITEMAP_GROUP, "карта сайта", f"{loc} — адрес не абсолютный, поисковик его отбросит")
+            elif loc not in urls:
+                rep.add(SITEMAP_GROUP, "карта сайта", f"{loc} — такой страницы нет (адреса строятся из "
+                                                      f"site.json → domain «{domain}»)")
+            if lastmod is not None and not LASTMOD_RE.match(lastmod):
+                rep.add(SITEMAP_GROUP, "карта сайта", f"{loc}: дата «{lastmod}» не в формате ГГГГ-ММ-ДД")
+            elif lastmod and lastmod[:10] > today:
+                rep.add(SITEMAP_GROUP, "карта сайта", f"{loc}: дата {lastmod} в будущем")
+        for url, name in sorted(urls.items(), key=lambda x: x[1]):
+            if url not in seen:
+                rep.add(SITEMAP_GROUP, "карта сайта", f"нет {name} ({url}) — поисковик узнает о ней "
+                                                      f"только по ссылкам")
+
+    robots = DIST / "robots.txt"
+    if robots.is_file():
+        _, sitemaps = robots_rules(robots.read_text(encoding="utf-8"))
+        want = origin(domain) + "/sitemap.xml"
+        for sm in sitemaps:
+            if sm != want:
+                rep.add(ROBOTS_GROUP, "карта сайта", f"Sitemap: {sm} — а карта лежит по адресу {want}")
+        if sitemaps and entries is None:
+            rep.add(ROBOTS_GROUP, "карта сайта", "строка Sitemap: есть, а dist/sitemap.xml нет")
+    return found
+
+
+# ─────────────────────────────── перед выпуском ───────────────────────────────
+
+def unconfirmed():
+    """Строки таблицы в ПРОВЕРИТЬ.md, кроме шапки и разделителя: [(что, где)]."""
+    f = ROOT / "ПРОВЕРИТЬ.md"
+    if not f.is_file():
+        return None
+    rows, header = [], False
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if not line.lstrip().startswith("|"):
+            header = False
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not header:          # первая строка таблицы — шапка
+            header = True
+            continue
+        if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
+            continue
+        if any(cells):
+            rows.append(tuple(c.replace("`", "") for c in (cells + [""])[:2]))
+    return rows
+
+
+def empty_slots(data):
+    """Пустые места под снимки: "image" без src. → [(страница, где, что нужно)]"""
+    out = []
+
+    def walk(x, path):
+        if isinstance(x, dict):
+            img = x.get("image")
+            if isinstance(img, dict) and not str(img.get("src") or "").strip():
+                out.append((path + ".image" if path else "image", img.get("need") or ""))
+            for k, v in x.items():
+                walk(v, f"{path}.{k}" if path else k)
+        elif isinstance(x, list):
+            for i, v in enumerate(x):
+                walk(v, f"{path}[{i}]")
+    res = []
+    for slug, page in sorted(data.items()):
+        out.clear()
+        walk(page, "")
+        res += [(slug, readable_path(page, p), need) for p, need in out]
+    return res
+
+
+def release_checks(data, site, pages, seo, rep):
+    """Требования к выпуску: [(требование, [что не так и где])]. Пустой список — выполнено.
+    pages=None — сборка не прошла, проверять по готовым страницам нечего."""
+    no_dist = ["не проверялось: сборка не прошла или dist/ устарел — см. ошибки выше"]
+    res = []
+
+    h = rep.hard()
+    res.append(("Обычная проверка без ошибок",
+                [f"ошибок: {h} — их список выше"] if h else []))
+
+    rows = unconfirmed()
+    if rows is None:
+        res.append(("ПРОВЕРИТЬ.md пуст", ["файла ПРОВЕРИТЬ.md нет — если его удалили намеренно, "
+                                          "уберите и это требование"]))
+    else:
+        res.append(("ПРОВЕРИТЬ.md пуст",
+                    [f"{len(rows)} {plural(len(rows), 'неподтверждённая строка', 'неподтверждённые строки', 'неподтверждённых строк')}:"] +
+                    [f"  {short(what, 60)} — {short(where, 50)}" for what, where in rows] if rows else []))
+
+    if pages is None:
+        res.append(("Ни на одной странице нет noindex", no_dist))
+    else:
+        bad = {}
+        for name, p in pages.items():
+            for c in p.robots:
+                if re.search(r"noindex|nofollow|none", c, re.I):
+                    bad.setdefault(c, []).append(name)
+        res.append(("Ни на одной странице нет noindex",
+                    [f"<meta name=\"robots\" content=\"{c}\"> — "
+                     f"{'на всех страницах' if len(n) == len(pages) else ', '.join(n)}"
+                     + (" (build.py, шаблон PAGE)" if len(n) == len(pages) else "")
+                     for c, n in bad.items()]))
+
+    robots = DIST / "robots.txt"
+    if pages is None:
+        res.append(("robots.txt разрешает обход и указывает карту сайта", no_dist))
+    elif not robots.is_file():
+        res.append(("robots.txt разрешает обход и указывает карту сайта", ["dist/robots.txt нет"]))
+    else:
+        rules, sitemaps = robots_rules(robots.read_text(encoding="utf-8"))
+        probs = [f"User-agent: {', '.join(a) or '(не указан)'} → Disallow: / — обход запрещён (build.py, main)"
+                 for a, k, v in rules if k == "disallow" and v == "/"]
+        if not sitemaps:
+            probs.append(f"нет строки «Sitemap: {origin(site['domain']) if site else '…'}/sitemap.xml»")
+        res.append(("robots.txt разрешает обход и указывает карту сайта", probs))
+
+    if pages is None:
+        res.append(("sitemap.xml есть, адресов столько же, сколько страниц", no_dist))
+    elif seo["sitemap"] is None:
+        res.append(("sitemap.xml есть, адресов столько же, сколько страниц", ["dist/sitemap.xml нет"]))
+    else:
+        n, m = len(set(seo["sitemap"])), len(pages)
+        probs = [] if n == m else [f"адресов в карте: {n}, страниц: {m}"]
+        if SITEMAP_GROUP in rep.groups:
+            probs.append(f"ошибки в карте сайта — раздел {SITEMAP_GROUP} выше")
+        res.append(("sitemap.xml есть, адресов столько же, сколько страниц", probs))
+
+    probs = []
+    if pages is None:
+        probs = no_dist
+    else:
+        drafts = {}
+        for name, p in pages.items():
+            for t in p.draft:
+                drafts.setdefault(" ".join(t.split()), []).append(name)
+        for t, n in drafts.items():
+            where = "на всех страницах" if len(n) == len(pages) else ", ".join(n)
+            what = f"полоса «{short(t, 60)}»" if t else "пустая полоса (site.json → draft пуст, а сама полоса осталась)"
+            probs.append(f"{what} {where} (build.py, <div class=\"draft\"> в шаблоне PAGE; "
+                         f"текст — site.json → draft)")
+    if site and re.search(r"макет", str(site.get("stamp") or ""), re.I):
+        probs.append(f"в подвале «{site['stamp']}» (site.json → stamp)")
+    res.append(("Полоса «макет» убрана", probs))
+
+    probs = []
+    ep = str((site or {}).get("form_endpoint") or "").strip()
+    if not ep:
+        probs.append("site.json → form_endpoint пуст: форма на боевом сайте ответит «Это макет — заявка никуда не ушла»")
+    elif not ep.startswith("https://"):
+        probs.append(f"site.json → form_endpoint «{ep}» — нужен адрес https://")
+    if pages is not None:
+        for name, p in sorted(pages.items()):
+            if any(not e.strip() for e in p.endpoints) and ep:
+                probs.append(f"{name}: у формы пустой data-endpoint, хотя в site.json он задан — сборка его не передала")
+    res.append(("Приёмник формы задан (form_endpoint)", probs))
+
+    slots = empty_slots(data)
+    res.append(("Нет пустых мест под снимки",
+                ([f"{len(slots)} {plural(len(slots), 'пустое место', 'пустых места', 'пустых мест')}: "
+                  f"положить снимок или убрать \"image\" из данных"] +
+                 [f"  {s}: {w}" + (f" — нужно: {short(need, 50)}" if need else "") for s, w, need in slots])
+                if slots else []))
+
+    if pages is None:
+        res.append(("Канонический адрес и Open Graph на всех страницах", no_dist))
+    else:
+        probs = []
+        for what, key in (("нет <link rel=\"canonical\">", "no_canonical"), ("нет разметки Open Graph", "no_og")):
+            n = seo[key]
+            if n:
+                probs.append(f"{what}: {'на всех страницах' if len(n) == len(pages) else ', '.join(n)}")
+        wrong = sum(1 for v in rep.groups.values() for k, _ in v if k in ("адрес", "карточка"))
+        if wrong:
+            probs.append(f"ошибки в canonical или Open Graph: {wrong} — их список выше")
+        res.append(("Канонический адрес и Open Graph на всех страницах", probs))
+    return res
+
+
+# Чего проверка знать не может. Печатается в конце --release, чтобы в день выпуска не забыть.
+RELEASE_BY_HAND = [
+    "site.json → domain — боевой домен, а не тестовый: от него зависят canonical, карта сайта и карточки",
+    "сайт открывается по https на этом домене, а другие адреса (www, служебный адрес хостинга) "
+    "перенаправляют на него",
+    "пробная заявка через форму дошла до получателя",
+    "карта сайта отправлена в Яндекс Вебмастер и Google Search Console",
+]
+
+
+def print_release(res):
+    print("\nГотовность к выпуску (--release)\n")
+    for title, probs in res:
+        print(f"{'✗' if probs else '✓'} {title}")
+        for p in probs:
+            print(f"    {p}")
+    failed = sum(1 for _, p in res if p)
+    print(f"\n{'Выпускать нельзя: не выполнено ' + str(failed) + ' из ' + str(len(res)) if failed else 'Все требования выполнены'}.")
+    print("\nПроверить руками (скрипт этого не видит):")
+    for line in RELEASE_BY_HAND:
+        print(f"  □ {line}")
+    return failed
 
 
 # ─────────────────────────────── вывод ───────────────────────────────
@@ -1232,6 +1581,11 @@ def plural(n, one, few, many):
 
 
 def main():
+    args = sys.argv[1:]
+    if any(a != "--release" for a in args):
+        print("Запуск: python3 check.py [--release]", file=sys.stderr)
+        sys.exit(2)
+    release = "--release" in args
     rep = Report()
     data, site, broken = load_pages(rep)
     site_missing = set()
@@ -1256,10 +1610,12 @@ def main():
     stats = f"страниц в content/: {len(data)}"
     weights = ""
     started = time.time()
+    pages, seo = None, None
     if build(rep, rep.count() > 0) and dist_is_fresh(data, started, rep):
         pages = parse_dist()
-        check_dist(pages, data, set(data) | broken, site_missing, rep)
+        check_dist(pages, data, set(data) | broken, site_missing, rep, closed=not release)
         images = check_html(pages, rep)
+        seo = check_seo(pages, site, rep)
         links = sum(len(p.links) for p in pages.values())
         stats += f", собрано: {len(pages)}, ссылок проверено: {links}"
         weights = "Вес страниц: " + ", ".join(
@@ -1283,7 +1639,8 @@ def main():
         lines = "\n".join(f"  {n} — {what.get(k, k)}" for k, n in sorted(kinds.items()))
         head = "Ошибок нет. Предупреждения" if not rep.hard() else "Из них предупреждения"
         print(f"\n{head} (сборку не валят):\n{lines}")
-    sys.exit(1 if rep.hard() else 0)
+    failed = print_release(release_checks(data, site, pages, seo, rep)) if release else 0
+    sys.exit(1 if rep.hard() or failed else 0)
 
 
 if __name__ == "__main__":
