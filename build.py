@@ -183,20 +183,33 @@ def b_circuit(b):
     return f'<div class="wrap"><div class="circuit" aria-hidden="true">{"".join(parts)}</div></div>'
 
 
-def b_form(b):
+def b_form(b, site=None):
+    """Форма заявки.
+
+    Единственное место на сайте, где посетитель становится заказчиком.
+    Поведением управляет assets/form.js; сюда попадают только адреса:
+    куда отправлять (form_endpoint из site.json — пусто значит «макет»)
+    и запасной путь, почта с телефоном, если отправка не удалась.
+    """
+    site = site or {}
     b = dict(b); b.setdefault("id", "form")
+    ep = attr(site, "form_endpoint")
+    data = (f' data-endpoint="{ep}" data-email="{attr(site, "email")}"'
+            f' data-tel="{attr(site, "phone_tel")}"'
+            f' data-tel-label="{attr(site, "phone")}"')
     return f"""<section{_pad(b, attr_only=True)}>
   <div class="wrap">{_head(b)}
-    <form class="form" id="calc" novalidate>
-      <div><label for="f-name">Имя</label><input id="f-name" name="name" autocomplete="name" placeholder="Как к вам обращаться"></div>
+    <form class="form" id="zayavka" novalidate{data}>
+      <div><label for="f-name">Имя</label><input id="f-name" name="name" autocomplete="name" aria-required="true" placeholder="Как к вам обращаться"></div>
       <div><label for="f-tel">Телефон</label><input id="f-tel" name="tel" inputmode="tel" autocomplete="tel" placeholder="+7"></div>
       <div class="full"><label for="f-mail">Электронная почта</label><input id="f-mail" name="email" type="email" autocomplete="email" placeholder="для спецификации"></div>
       <div class="full"><label for="f-task">Задача</label><textarea id="f-task" name="task" placeholder="{attr(b,'placeholder')}"></textarea></div>
-      <div class="full agree"><input id="f-ok" name="agree" type="checkbox"><label for="f-ok">Согласен на обработку персональных данных</label></div>
+      <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <div class="full agree"><input id="f-ok" name="agree" type="checkbox" aria-required="true"><label for="f-ok">Согласен на <a href="legal.html#consent">обработку персональных данных</a></label></div>
       <div class="full" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
         <button class="pill" type="submit">Отправить заявку</button>
-        <span class="sent" id="sent" hidden>Это макет — заявка никуда не ушла.</span>
       </div>
+      <p class="form-status" id="form-status" role="status"></p>
     </form>
   </div>
 </section>"""
@@ -424,10 +437,9 @@ def footer(site):
 </footer>"""
 
 
-SCRIPT = """<script>
-var f = document.getElementById('calc');
-if (f) f.addEventListener('submit', function(e){ e.preventDefault(); document.getElementById('sent').hidden = false; });
-</script>"""
+# Прежний обработчик «это макет» жил здесь; теперь всё поведение формы
+# в assets/form.js, который подключается только на страницах с формой.
+SCRIPT = ""
 
 PAGE = """<!doctype html>
 <html lang="ru">
@@ -458,7 +470,7 @@ PAGE = """<!doctype html>
 # Скрипт подключается только на тех страницах, где он нужен:
 # калькулятор лежит в отдельном файле и не грузится на остальных
 # семнадцати страницах, которым он ни к чему.
-BLOCK_SCRIPTS = {"calcgen": "calc-generator.js"}
+BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js"}
 
 
 def render(page, site):
@@ -473,7 +485,7 @@ def render(page, site):
         fn = BLOCKS.get(b["type"])
         if fn is None:
             raise SystemExit(f'{page["slug"]}: неизвестный тип блока "{b["type"]}"')
-        body.append(fn(b))
+        body.append(fn(b, site) if b["type"] == "form" else fn(b))
     return PAGE.format(
         title=e(page["title"]), descr=e(page.get("description", "")),
         css=stamp("style.css"),

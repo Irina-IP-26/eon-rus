@@ -322,3 +322,14 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .cg-detail{margin-top:8px; font-family:var(--mono); font-size:12.5px; color:var(--mist); max-width:62ch}
 @media (max-width:900px){ .cg-in{grid-template-columns:repeat(2,1fr)} .cg-out{grid-template-columns:1fr} }
 @media (max-width:420px){ .cg-in{grid-template-columns:1fr} }
+
+/* форма заявки: состояния и ошибки полей */
+.field-error{display:block; margin-top:6px; font-size:13px; color:var(--accent)}
+.agree .field-error{flex-basis:100%; margin-top:2px}
+.form [aria-invalid="true"]{border-color:var(--accent)}
+.form-status{grid-column:1 / -1; font-size:14.5px; line-height:1.55; color:var(--slate)}
+.form-status[data-state="sent"]{color:var(--accent); font-weight:600}
+.form-status[data-state="error"],.form-status[data-state="mock"]{color:var(--ink)}
+.form-status a{color:var(--accent)}
+.form[aria-busy="true"] [type="submit"]{opacity:.6; cursor:progress}
+.hp{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden}
