@@ -212,10 +212,11 @@ def _head(b):
     if not b.get("eyebrow") and not b.get("h2"):
         return ""
     if not b.get("h2"):
-        return f'<div class="eyebrow">{e(b["eyebrow"])}</div>'
+        return f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if b.get("eyebrow") else ""
     q = f' <span class="q">{raw(b["h2q"])}</span>' if b.get("h2q") else ""
     lede = f'<p class="lede">{raw(b["lede"])}</p>' if b.get("lede") else ""
-    return f'<div class="head"><div class="eyebrow">{e(b.get("eyebrow",""))}</div><div><h2>{raw(b["h2"])}{q}</h2>{lede}</div></div>'
+    eb = f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if b.get("eyebrow") else "<div></div>"
+    return f'<div class="head">{eb}<div><h2>{raw(b["h2"])}{q}</h2>{lede}</div></div>'
 
 
 def _shot(img):
