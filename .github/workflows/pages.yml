@@ -1,4 +1,4 @@
-name: Сборка и публикация сайта
+name: build-and-deploy
 
 on:
   push:
@@ -22,11 +22,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Сборка
+      - name: Build site
         run: python3 build.py
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
