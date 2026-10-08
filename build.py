@@ -228,13 +228,20 @@ def _pad(b, attr_only=False):
 
 
 def _head(b):
-    if not b.get("eyebrow") and not b.get("h2"):
+    # strip(): поле из одних пробелов — это «заголовка нет», а не заголовок
+    # из пробела. Раньше такой h2 рисовался пустым <h2> </h2>: проверка данных
+    # считала, что заголовка нет, а в разметке он был.
+    def f(k):
+        v = b.get(k)
+        return v if isinstance(v, str) and v.strip() else None
+
+    if not f("eyebrow") and not f("h2"):
         return ""
-    if not b.get("h2"):
-        return f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if b.get("eyebrow") else ""
-    q = f' <span class="q">{raw(b["h2q"])}</span>' if b.get("h2q") else ""
-    lede = f'<p class="lede">{raw(b["lede"])}</p>' if b.get("lede") else ""
-    eb = f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if b.get("eyebrow") else "<div></div>"
+    if not f("h2"):
+        return f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if f("eyebrow") else ""
+    q = f' <span class="q">{raw(b["h2q"])}</span>' if f("h2q") else ""
+    lede = f'<p class="lede">{raw(b["lede"])}</p>' if f("lede") else ""
+    eb = f'<div class="eyebrow">{e(b["eyebrow"])}</div>' if f("eyebrow") else "<div></div>"
     return f'<div class="head">{eb}<div><h2>{raw(b["h2"])}{q}</h2>{lede}</div></div>'
 
 
@@ -288,10 +295,25 @@ def _plate_card(p):
 
 # ─────────────────────────── шапка, подвал, каркас ───────────────────────────
 
-def logo(site):
+def logo_defs(site):
+    """Контуры логотипа один раз на страницу, в скрытом <symbol>.
+
+    Логотип стоит дважды — в шапке и в подвале, — и раньше оба раза
+    выводился целиком: два килобайта одинаковых контуров на каждой странице.
+    Теперь контуры объявляются один раз, а оба места ссылаются на них.
+    """
     paths = "".join(f'<path d="{d}"/>' if d.startswith("M") else f'<polygon points="{d}"/>'
                     for d in site["logo"])
-    return f'<svg class="logo" viewBox="{site["logo_viewbox"]}" role="img" aria-label="ЕОН">{paths}</svg>'
+    return (f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">'
+            f'<symbol id="eon-logo" viewBox="{site["logo_viewbox"]}">{paths}</symbol></svg>')
+
+
+def logo(site):
+    # viewBox нужен и здесь: без него у svg нет своих пропорций
+    # и width:auto схлопывается. fill задаётся на самом svg —
+    # контуры лежат в <symbol>, и селектор .logo path до них не достаёт.
+    return (f'<svg class="logo" viewBox="{site["logo_viewbox"]}" role="img" aria-label="ЕОН">'
+            f'<use href="#eon-logo"/></svg>')
 
 
 def header(site, current):
@@ -377,6 +399,7 @@ PAGE = """<!doctype html>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+{logo_defs}
 <div class="draft">{draft}</div>
 {header}
 {body}
@@ -397,7 +420,8 @@ def render(page, site):
         body.append(fn(b))
     return PAGE.format(
         title=e(page["title"]), descr=e(page.get("description", "")),
-        draft=site["draft"], header=header(site, page["slug"] + ".html"),
+        draft=site["draft"], logo_defs=logo_defs(site),
+        header=header(site, page["slug"] + ".html"),
         body="\n".join(body), footer=footer(site), script=SCRIPT,
     )
 

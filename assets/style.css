@@ -61,8 +61,7 @@ img{max-width:100%; height:auto}
 .top-in,.wrap{max-width:var(--wrap); margin:0 auto; padding-inline:20px}
 .top-row{display:flex; align-items:center; gap:18px; padding-block:14px; flex-wrap:wrap}
 .brand{display:flex; align-items:center; gap:10px; text-decoration:none; flex:0 0 auto; color:var(--accent)}
-.logo{display:block; height:26px; width:auto}
-.logo path,.logo polygon{fill:currentColor}
+.logo{display:block; height:26px; width:auto; fill:currentColor}
 .brand-tag{color:var(--mist); font-size:12.5px; line-height:1.3; padding-left:14px; border-left:1px solid var(--line); max-width:230px}
 .top-sp{flex:1 1 auto; min-width:0}
 .top-c{display:flex; align-items:center; gap:16px; font-size:13.5px; color:var(--slate); flex-wrap:wrap}
