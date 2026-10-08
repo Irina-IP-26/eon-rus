@@ -43,12 +43,14 @@
     var fuel = num("cg-fuel");         // цена топлива, ₽/л
     var grid = num("cg-grid");         // цена сетевой энергии, ₽/кВт·ч
     var load = num("cg-load") / 100;   // средняя загрузка генератора, доля
+    var daysYear = num("cg-days");     // сколько дней в году так работаем
 
     var bad = [];
     if (kw <= 0) bad.push("мощность");
     if (hours <= 0 || hours > 24) bad.push("часы");
     if (fuel <= 0) bad.push("цена топлива");
     if (load <= 0 || load > 1) bad.push("загрузка");
+    if (daysYear <= 0 || daysYear > 365) bad.push("дни в году");
     if (bad.length) {
       put("cg-note", "Проверьте: " + bad.join(", ") + ".", "cg-note bad");
       return;
@@ -82,22 +84,37 @@
     put("cg-ratio", (Math.round((genTotal / stoTotal) * 10) / 10)
         .toString().replace(".", ",") + " ×");
 
-    var perDay = (genTotal - stoTotal) * genUseful;
-    var payback = perDay > 0 ? (stoBuy - genBuy) / perDay : 0;
+    // Окупаемость считается в годах, а не в «днях работы»: день работы
+    // бывает не каждый день. Без этого числа расчёт выглядит красивее,
+    // чем есть, — для дома с парой отключений в год он честно показывает,
+    // что накопитель берут не ради экономии.
+    var saveDay = (genTotal - stoTotal) * genUseful;
+    var saveYear = saveDay * daysYear;
+    var diff = stoBuy - genBuy;
     var paybackText;
-    if (payback <= 0) {
+    if (diff <= 0) {
       paybackText = "Накопитель дешевле с первого дня: он и стоит меньше, "
         + "и киловатт-час у него дешевле.";
-    } else if (payback > 365 * 12) {
-      paybackText = "При таком режиме накопитель не окупится за срок службы: "
-        + "генератор работает слишком редко, чтобы разница в топливе накопилась.";
+    } else if (saveYear <= 0) {
+      paybackText = "При таком режиме накопитель не выгоднее генератора "
+        + "по деньгам — считайте по другим доводам: тишина, отсутствие "
+        + "выхлопа и то, что он включается сам.";
     } else {
-      var years = payback / 365;
-      paybackText = "Разница в цене окупается примерно за "
-        + (years >= 1 ? (Math.round(years * 10) / 10).toString().replace(".", ",")
-             + " " + plural(Math.round(years), "год", "года", "лет")
-           : Math.round(payback) + " " + plural(Math.round(payback), "день", "дня", "дней"))
-        + ". Дальше накопитель работает в плюс.";
+      var years = diff / saveYear;
+      if (years > 10) {
+        paybackText = "Разница в цене окупалась бы дольше срока службы: "
+          + "при " + Math.round(daysYear) + " "
+          + plural(Math.round(daysYear), "дне", "днях", "днях")
+          + " работы в году генератор просто не успевает сжечь столько "
+          + "топлива. Накопитель здесь берут не ради экономии, а ради того, "
+          + "что он включается сам, не шумит и не травит выхлопом.";
+      } else {
+        paybackText = "Разница в цене окупается примерно за "
+          + (Math.round(years * 10) / 10).toString().replace(".", ",") + " "
+          + plural(Math.round(years), "год", "года", "лет")
+          + ": это " + money(saveYear) + " экономии в год. "
+          + "Дальше накопитель работает в плюс.";
+      }
     }
     put("cg-note", paybackText, "cg-note");
     put("cg-detail",

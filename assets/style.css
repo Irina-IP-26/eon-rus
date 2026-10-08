@@ -304,7 +304,7 @@ section.dark .shot.empty span b{color:#C3CBD4}
 
 /* калькулятор «генератор или накопитель» */
 .calcgen{border:1px solid var(--line); border-radius:4px; padding:26px}
-.cg-in{display:grid; grid-template-columns:repeat(5,1fr); gap:18px}
+.cg-in{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
 .cg-in label{display:flex; flex-direction:column; gap:6px; font-size:13.5px; color:var(--slate)}
 .cg-in input{font-family:var(--mono); font-size:19px; font-weight:600; color:var(--ink);
   border:0; border-bottom:2px solid var(--line); background:transparent; padding:4px 0 6px; width:100%}
