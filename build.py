@@ -9,6 +9,8 @@
 """
 import hashlib, json, html, pathlib, re, shutil, sys
 
+from seo import canonical_link, og_meta, origin, page_lastmod, page_url, sitemap_xml
+
 ROOT = pathlib.Path(__file__).parent
 CONTENT = ROOT / "content"
 ASSETS = ROOT / "assets"
@@ -449,6 +451,7 @@ PAGE = """<!doctype html>
 <meta name="robots" content="noindex, nofollow">
 <title>{title}</title>
 <meta name="description" content="{descr}">
+{seo}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -489,6 +492,7 @@ def render(page, site):
     return PAGE.format(
         title=e(page["title"]), descr=e(page.get("description", "")),
         css=stamp("style.css"),
+        seo=canonical_link(site, page["slug"]) + "\n" + og_meta(page, site, page["slug"]),
         draft=site["draft"], logo_defs=logo_defs(site),
         header=header(site, page["slug"] + ".html"),
         body="\n".join(body), footer=footer(site),
@@ -508,7 +512,7 @@ def main():
         dst = DIST / f.relative_to(ASSETS)
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(f, dst)
-    built = []
+    built, entries = [], []
     for src in sorted(CONTENT.glob("*.json")):
         if src.name == "site.json":
             continue
@@ -516,8 +520,15 @@ def main():
         page.setdefault("slug", src.stem)
         out = DIST / (page["slug"] + ".html")
         out.write_text(render(page, site), encoding="utf-8")
+        entries.append((page_url(site["domain"], page["slug"]), page_lastmod(src)))
         built.append(f'{out.name} — {len(out.read_text(encoding="utf-8")):,} байт')
-    (DIST / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
+    (DIST / "sitemap.xml").write_text(sitemap_xml(entries), encoding="utf-8")
+    # Закрытость и карта сайта — в одном месте: при выпуске здесь убирается
+    # только строка Disallow, а Sitemap остаётся.
+    (DIST / "robots.txt").write_text(
+        "User-agent: *\n"
+        "Disallow: /\n"
+        f"Sitemap: {origin(site['domain'])}/sitemap.xml\n", encoding="utf-8")
     (DIST / ".nojekyll").write_text("", encoding="utf-8")
     # Домен публикации. Без этого файла GitHub Pages сбрасывает
     # настройку custom domain при каждой публикации.

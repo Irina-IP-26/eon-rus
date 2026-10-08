@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Полная история: даты в карте сайта берутся из коммитов, менявших
+          # content/<страница>.json. В копии с одним коммитом у всех страниц
+          # оказалась бы одна дата — ложь, которая выглядит честной.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
