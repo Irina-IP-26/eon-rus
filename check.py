@@ -924,7 +924,35 @@ def dist_is_fresh(data, started, rep):
     return True
 
 
-TITLE_MAX = 70
+TITLE_MIN, TITLE_MAX = 30, 70
+# Сходство title / description двух страниц: общий кусок целыми словами не короче этой доли
+# более короткой строки и не меньше двух слов. Порог подобран прогоном по всем страницам —
+# см. _log/2026-10-08-картинки-и-поиск.md. Абсолютный порог в знаках не годится: название
+# категории («системы накопления энергии») законно повторяется в заголовках разных страниц.
+SIMILAR_SHARE, SIMILAR_WORDS = 0.6, 2
+WORD_RE = re.compile(r"[\wё]+(?:-[\wё]+)*", re.I)
+
+
+def common_words(a, b):
+    """Самый длинный общий кусок двух строк целыми словами, без учёта регистра.
+    Целыми словами — чтобы «аккумулятор» внутри «аккумуляторных» не считался совпадением.
+    → (слов, кусок как он написан в a, длина куска для сравнения, длина более короткой строки)"""
+    ma, mb = list(WORD_RE.finditer(a)), list(WORD_RE.finditer(b))
+    ta = [m.group(0).lower().replace("ё", "е") for m in ma]
+    tb = [m.group(0).lower().replace("ё", "е") for m in mb]
+    best = (0, 0)  # (начало в ta, число слов)
+    for i in range(len(ta)):
+        for j in range(len(tb)):
+            k = 0
+            while i + k < len(ta) and j + k < len(tb) and ta[i + k] == tb[j + k]:
+                k += 1
+            if k and len(" ".join(ta[i:i + k])) > len(" ".join(ta[best[0]:best[0] + best[1]])):
+                best = (i, k)
+    i, k = best
+    if not k:
+        return 0, "", 0, 0
+    piece = a[ma[i].start():ma[i + k - 1].end()]
+    return k, piece, len(" ".join(ta[i:i + k])), min(len(" ".join(ta)), len(" ".join(tb)))
 DESCR_MIN, DESCR_MAX = 70, 200
 ARROWS = "→←↑↓↗↘›‹»«·•—–-"
 
@@ -935,6 +963,7 @@ def check_html(pages, rep):
     выводятся один раз в разделе site.json."""
     shared = {}
     titles, descrs = {}, {}
+    images = {}
     for name, p in pages.items():
         g = page_group(name.removesuffix(".html"))
 
@@ -962,8 +991,18 @@ def check_html(pages, rep):
                                         f"«{short(text)}» — пропущен h{prev['level'] + 1} (строка {h['line']})")
             prev = h
 
-        # Картинки: у каждой непустой alt. Пустые слоты рисуются заглушкой без <img>.
+        # Картинки: файл на месте и у каждой непустой alt. Пустые слоты рисуются заглушкой без <img>.
         for im in p.imgs:
+            src = im["src"].strip()
+            if not src:
+                report(im["zone"], "картинки", f"<img> без src (строка {im['line']})")
+            elif not is_external(src):
+                path = DIST / src.split("#")[0].split("?")[0]
+                if not path.is_file():
+                    report(im["zone"], "картинки", f"<img src=\"{src}\"> — такого файла в dist/ нет: сборка копирует "
+                                                   f"assets/, значит он должен лежать в assets/{src} (строка {im['line']})")
+                else:
+                    images.setdefault(src, path.stat().st_size)
             if not (im["alt"] or "").strip():
                 state = "без alt" if im["alt"] is None else "с пустым alt"
                 report(im["zone"], "картинки", f"<img src=\"{im['src']}\"> {state} — для поиска и для читалки "
@@ -1002,6 +1041,9 @@ def check_html(pages, rep):
         elif len(t) > TITLE_MAX:
             rep.add(g, "поиск", f"<title> {len(t)} знаков, ориентир — до {TITLE_MAX}: хвост обрежется в выдаче"
                                 f"\n        «{t}»")
+        elif len(t) < TITLE_MIN:
+            rep.add(g, "поиск", f"<title> {len(t)} знаков, ориентир — от {TITLE_MIN}: по такому заголовку в выдаче "
+                                f"не видно, чем занимается страница\n        «{t}»")
         if not d:
             rep.add(g, "поле", "description пустой или его нет — поисковик возьмёт для сниппета случайный кусок текста")
         elif not DESCR_MIN <= len(d) <= DESCR_MAX:
@@ -1021,9 +1063,22 @@ def check_html(pages, rep):
                     rep.add(page_group(n.removesuffix(".html")), "повтор",
                             f"{what} такой же, как у {others} — страницы отнимают выдачу друг у друга\n        «{short(text, 70)}»")
 
+    # Почти повтор: разные title, но общая большая часть — для выдачи страницы снова спорят.
+    for what, table in (("<title>", titles), ("description", descrs)):
+        texts = sorted(table)
+        for i, a in enumerate(texts):
+            for b in texts[i + 1:]:
+                n, piece, size, shorter = common_words(a, b)
+                if n >= SIMILAR_WORDS and shorter and size >= SIMILAR_SHARE * shorter:
+                    for x, y in ((table[a][0], table[b][0]), (table[b][0], table[a][0])):
+                        rep.add(page_group(x.removesuffix(".html")), "поиск",
+                                f"{what} почти как у {y}: общий кусок «{piece}» — {len(piece)} знаков, "
+                                f"{size / shorter:.0%} более короткого; для выдачи это почти повтор")
+
     for (kind, msg), names in sorted(shared.items()):
         n = "на всех страницах" if len(names) == len(pages) else "на " + ", ".join(sorted(names))
         rep.add(SITE_GROUP, kind, f"{msg} — шапка или подвал, {n}")
+    return images
 
 
 def check_dist(pages, data, known, site_missing, rep):
@@ -1166,12 +1221,15 @@ def main():
     if build(rep, rep.count() > 0) and dist_is_fresh(data, started, rep):
         pages = parse_dist()
         check_dist(pages, data, set(data) | broken, site_missing, rep)
-        check_html(pages, rep)
+        images = check_html(pages, rep)
         links = sum(len(p.links) for p in pages.values())
         stats += f", собрано: {len(pages)}, ссылок проверено: {links}"
         weights = "Вес страниц: " + ", ".join(
             f"{n.removesuffix('.html')} {(DIST / n).stat().st_size / 1024:.1f} КБ".replace(".", ",")
             for n in sorted(pages))
+        if images:
+            weights += "\nВес картинок: " + ", ".join(
+                f"{src} {size / 1024:.0f} КБ" for src, size in sorted(images.items(), key=lambda x: -x[1]))
     print_report(rep, stats)
     if weights:
         print(weights)
@@ -1182,7 +1240,7 @@ def main():
                 if k in Report.SOFT_KINDS:
                     kinds[k] = kinds.get(k, 0) + 1
         what = {"ненаписанная страница": "ссылки на ещё не написанные страницы",
-                "поиск": "длина title или description вне ориентира"}
+                "поиск": "title или description: длина вне ориентира или почти повтор"}
         lines = "\n".join(f"  {n} — {what.get(k, k)}" for k, n in sorted(kinds.items()))
         head = "Ошибок нет. Предупреждения" if not rep.hard() else "Из них предупреждения"
         print(f"\n{head} (сборку не валят):\n{lines}")
