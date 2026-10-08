@@ -10,7 +10,7 @@
 Код возврата: 0 — ошибок нет (предупреждения о страницах из PLANNED не в счёт),
 1 — есть ошибки.
 """
-import difflib, json, pathlib, re, shutil, subprocess, sys
+import difflib, html, json, pathlib, re, shutil, subprocess, sys
 from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).parent
@@ -389,6 +389,141 @@ def check_page_markup(slug, page, rep):
             rep.add(g, "разметка", f"{readable_path(page, path)}: {msg}\n        значение: «{snippet(value, pos)}»")
 
 
+# ─────────────────────── границы диапазона против таблицы ───────────────────────
+# Колонка таблицы с "bounds": true объявляет: минимум и максимум её значений —
+# официальный диапазон линейки. Тогда «от X до Y» с той же единицей в любом
+# тексте страницы обязано совпадать с ним, а одиночное число — быть в таблице.
+# Колонки без отметки не участвуют: на странице полно законных чисел с единицами
+# (220 В сети, 3000 циклов, 36 месяцев), и угадывать, какие из них про линейку,
+# проверка не должна — это заявляет автор данных.
+
+# Латиница, неотличимая на глаз от кириллицы: «A·ч» с латинской A — та же единица.
+LOOKALIKE = str.maketrans("AaBCcEeHKkMOoPpTXxy", "АаВСсЕеНКкМОоРрТХху")
+# Единица словами → сокращение (после снятия разделителей и регистра).
+UNIT_WORDS = [
+    (r"киловатт-?час\w*", "квтч"), (r"ватт-?час\w*", "втч"), (r"ампер-?час\w*", "ач"),
+    (r"киловатт\w*", "квт"), (r"ватт\w*", "вт"), (r"вольт\w*", "в"), (r"ампер\w*", "а"),
+    (r"килограмм\w*", "кг"), (r"циклов|цикла|цикл", "цикл"),
+]
+NUM = r"\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?"
+UNIT = r"°?[A-Za-zА-Яа-яЁё]+(?:[-·⋅*.][A-Za-zА-Яа-яЁё]+)*(?![\dA-Za-zА-Яа-яЁё])"
+# Число не должно продолжать слово или другое число: «ЕОН-24В150-Т» — артикул, не «150».
+def _n(name):
+    return rf"(?<![\dA-Za-zА-Яа-яЁё.,])(?P<{name}>[−+-]?(?:{NUM}))\+?"
+RANGE_FROM_RE = re.compile(rf"\bот\s+{_n('x')}\s*(?P<ux>{UNIT})?\s*до\s+{_n('y')}\s*(?P<uy>{UNIT})", re.I)
+RANGE_DASH_RE = re.compile(rf"{_n('x')}\s*(?P<ux>{UNIT})?\s*[–—…-]\s*{_n('y')}\s*(?P<uy>{UNIT})")
+SINGLE_RE = re.compile(rf"{_n('n')}\s*(?P<u>{UNIT})")
+
+
+def norm_unit(u):
+    """«А·ч», «Ач», «A·ч» (латинская A), «ампер-часов» → «ач»."""
+    u = (u or "").translate(LOOKALIKE).lower().replace("ё", "е")
+    for pat, short_u in UNIT_WORDS:
+        if re.fullmatch(pat, u):
+            return short_u
+    return re.sub(r"[\s·⋅*.\-]", "", u)  # ° остаётся: «°С» — не «с»
+
+
+def num(s):
+    return float(re.sub(r"[ \u00a0\u202f+]", "", s).replace(",", ".").replace("−", "-"))
+
+
+def fmt(x):
+    return f"{x:g}".replace(".", ",")
+
+
+def plain(value):
+    """Текст поля без разметки: <br> и теги — пробел, &nbsp; — пробел."""
+    return html.unescape(re.sub(r"<[^>]*>", " ", value)).replace("\u00a0", " ")
+
+
+def table_bounds(page, g, rep):
+    """Значения колонок с bounds: {единица: {"vals": {значение: модель}, "col": подпись}}."""
+    out = {}
+    for i, b in enumerate(page.get("blocks", [])):
+        if b.get("type") != "table" or not isinstance(b.get("columns"), list):
+            continue
+        cols = [c for c in b["columns"] if isinstance(c, dict)]
+        first = cols[0].get("key") if cols else None
+        groups = b.get("groups") if b.get("groups") else [{"rows": b.get("rows") or []}]
+        for col in cols:
+            if "bounds" in col and col["bounds"] is not True:
+                rep.add(g, "диапазон", f"{block_label(i, b)}, колонка «{col.get('label')}»: bounds = "
+                                       f"{col['bounds']!r} — бывает только true")
+            if col.get("bounds") is not True:
+                continue
+            # Единица может стоять в заголовке колонки: «Ёмкость, А·ч» и голые числа в ячейках.
+            label_unit = col.get("label", "").rpartition(",")[2].strip() if "," in col.get("label", "") else ""
+            for grp in groups if isinstance(groups, list) else []:
+                for row in (grp.get("rows") or []) if isinstance(grp, dict) else []:
+                    if not isinstance(row, dict):
+                        continue
+                    v = row.get(col.get("key"))
+                    if empty(v):
+                        continue
+                    text = plain(str(v))
+                    found = [(m.group("n"), m.group("u")) for m in SINGLE_RE.finditer(text)]
+                    if not found and label_unit and re.fullmatch(rf"\s*(?:{NUM})\s*", text):
+                        found = [(text.strip(), label_unit)]
+                    if not found:
+                        rep.add(g, "диапазон", f"{block_label(i, b)}, колонка «{col.get('label')}» с bounds: "
+                                               f"ячейка «{short(text)}» не читается как число с единицей — "
+                                               f"она не попадёт в диапазон линейки")
+                        continue
+                    model = short(row.get(first, "")) if first else ""
+                    for n, u in found:
+                        e = out.setdefault(norm_unit(u), {"vals": {}, "unit": u, "col": col.get("label")})
+                        e["vals"].setdefault(num(n), model)
+    return out
+
+
+def check_bounds(slug, page, rep):
+    """Числа с единицей из колонки bounds в тексте страницы — против таблицы."""
+    if not isinstance(page, dict):
+        return
+    g = page_group(slug)
+    bounds = table_bounds(page, g, rep)
+    if not bounds:
+        return  # таблицы с отметкой bounds нет — сверять не с чем
+    for path, key, value in walk_strings(page):
+        if key in NOT_TEXT or key in ("src", "key", "align") or TABLE_CELL_RE.match(path) \
+                or re.search(r"\.columns\[\d+\]\.", path):
+            continue
+        text, taken, where = plain(value), [], readable_path(page, path)
+        for rx in (RANGE_FROM_RE, RANGE_DASH_RE):
+            for m in rx.finditer(text):
+                if any(a < m.end() and m.start() < b for a, b in taken):
+                    continue
+                u = norm_unit(m.group("uy"))
+                if m.group("ux") and norm_unit(m.group("ux")) != u:
+                    continue  # «от 5 кВт до 10 кВт·ч» — не диапазон одной величины
+                taken.append(m.span())
+                if u not in bounds:
+                    continue
+                vals = bounds[u]["vals"]
+                lo, hi = min(vals), max(vals)
+                x, y = num(m.group("x")), num(m.group("y"))
+                bad = []
+                if x != lo:
+                    bad.append(f"нижняя граница {fmt(x)}, а минимум таблицы {fmt(lo)} ({vals[lo]})")
+                if y != hi:
+                    bad.append(f"верхняя граница {fmt(y)}, а максимум таблицы {fmt(hi)} ({vals[hi]})")
+                if bad:
+                    rep.add(g, "диапазон", f"{where}: «{m.group(0).strip()}» — {'; '.join(bad)}\n"
+                                           f"        по таблице: от {fmt(lo)} до {fmt(hi)} {bounds[u]['unit']}"
+                                           f" (колонка «{bounds[u]['col']}», {len(vals)} "
+                                           f"{plural(len(vals), 'значение', 'значения', 'значений')})")
+        for m in SINGLE_RE.finditer(text):
+            if any(a < m.end() and m.start() < b for a, b in taken):
+                continue
+            u = norm_unit(m.group("u"))
+            if u in bounds and num(m.group("n")) not in bounds[u]["vals"]:
+                vals = bounds[u]["vals"]
+                rep.add(g, "диапазон", f"{where}: «{m.group(0).strip()}» — такого значения в таблице нет\n"
+                                       f"        по таблице: от {fmt(min(vals))} до {fmt(max(vals))} "
+                                       f"{bounds[u]['unit']}, значения: {', '.join(fmt(v) for v in sorted(vals))}")
+
+
 def site_links(site):
     """Все ссылки из site.json: (href, где в меню/подвале)."""
     out = []
@@ -646,6 +781,7 @@ def main():
     for slug, page in data.items():
         check_page_fields(slug, page, rep)
         check_page_markup(slug, page, rep)
+        check_bounds(slug, page, rep)
     if site is not None:
         # страница с битым JSON существует, просто не читается — об этом уже сказано выше
         site_missing = check_site(site, set(data) | broken, rep)
