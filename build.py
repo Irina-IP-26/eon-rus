@@ -41,7 +41,8 @@ def b_hero(b):
         for c in b.get("cta", [])
     )
     plate = _plate(b["plate"]) if b.get("plate") else ""
-    return f"""<section class="hero">
+    i = f' id="{attr(b, "id")}"' if b.get("id") else ""
+    return f"""<section class="hero"{i}>
   <div class="wrap hero-grid">
     <div>
       <div class="eyebrow">{e(b["eyebrow"])}</div>
@@ -119,19 +120,21 @@ def b_faq(b):
 
 
 def b_circuit(b):
-    return """<div class="wrap"><div class="circuit" aria-hidden="true">
-  <i></i>
-  <svg width="74" height="16" viewBox="0 0 74 16"><path d="M0 8h16l4-6 8 12 8-12 8 12 4-6h26" fill="none" stroke="currentColor" stroke-width="1"/></svg>
-  <i></i>
-  <svg width="34" height="16" viewBox="0 0 34 16"><path d="M0 8h14M20 8h14" stroke="currentColor" stroke-width="1" fill="none"/><path d="M14 1v14M20 1v14" stroke="currentColor" stroke-width="1"/></svg>
-  <i></i>
-  <svg width="24" height="16" viewBox="0 0 24 16"><path d="M0 8h7M17 8h7" stroke="currentColor" stroke-width="1"/><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1"/></svg>
-  <i></i>
-</div></div>"""
+    sym = {
+        "saw": '<svg width="74" height="16" viewBox="0 0 74 16"><path d="M0 8h16l4-6 8 12 8-12 8 12 4-6h26" fill="none" stroke="currentColor" stroke-width="1"/></svg>',
+        "cap": '<svg width="34" height="16" viewBox="0 0 34 16"><path d="M0 8h14M20 8h14" stroke="currentColor" stroke-width="1" fill="none"/><path d="M14 1v14M20 1v14" stroke="currentColor" stroke-width="1"/></svg>',
+        "dot": '<svg width="24" height="16" viewBox="0 0 24 16"><path d="M0 8h7M17 8h7" stroke="currentColor" stroke-width="1"/><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1"/></svg>',
+    }
+    parts = ["<i></i>"]
+    for k in b.get("symbols", ["saw", "cap", "dot"]):
+        parts.append(sym[k])
+        parts.append("<i></i>")
+    return f'<div class="wrap"><div class="circuit" aria-hidden="true">{"".join(parts)}</div></div>'
 
 
 def b_form(b):
-    return f"""<section id="form"{_pad(b, attr_only=True)}>
+    b = dict(b); b.setdefault("id", "form")
+    return f"""<section{_pad(b, attr_only=True)}>
   <div class="wrap">{_head(b)}
     <form class="form" id="calc" novalidate>
       <div><label for="f-name">Имя</label><input id="f-name" name="name" autocomplete="name" placeholder="Как к вам обращаться"></div>
@@ -157,11 +160,12 @@ BLOCKS = {
 # ───────────────────────── вспомогательная вёрстка ─────────────────────────
 
 def _pad(b, attr_only=False):
-    """Раздел без верхнего отступа — когда он продолжает предыдущий."""
+    """Атрибуты раздела: якорь, тёмная подложка, снятый верхний отступ."""
+    i = f' id="{attr(b, "id")}"' if b.get("id") else ""
     s = ' style="padding-top:0"' if b.get("tight") else ""
     if b.get("dark") and not attr_only:
-        return f' class="dark"{s}'
-    return s
+        return f'{i} class="dark"{s}'
+    return f'{i}{s}'
 
 
 def _head(b):
@@ -227,10 +231,10 @@ def header(site, current):
       <span class="brand-tag">{e(site["tagline"])}</span>
       <span class="top-sp"></span>
       <div class="top-c">
-        <a href="#form">{e(site["email"])}</a>
-        <a href="#form">{e(site["phone"])}</a>
+        <a href="{e(site.get("form_href", "#form"))}">{e(site["email"])}</a>
+        <a href="{e(site.get("form_href", "#form"))}">{e(site["phone"])}</a>
       </div>
-      <a class="pill" href="#form">{e(site["cta"])}</a>
+      <a class="pill" href="{e(site.get("form_href", "#form"))}">{e(site["cta"])}</a>
     </div>
     <ul class="nav" aria-label="Основная навигация">{"".join(nav)}</ul>
   </div>
