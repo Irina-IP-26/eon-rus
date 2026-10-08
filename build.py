@@ -399,8 +399,15 @@ def render(page, site):
 def main():
     site = json.loads((CONTENT / "site.json").read_text(encoding="utf-8"))
     DIST.mkdir(exist_ok=True)
-    for f in ASSETS.iterdir():
-        shutil.copy2(f, DIST / f.name)
+    # Копируем assets/ целиком, вместе с подпапками: фотографии лежат
+    # в assets/img/. Плоское копирование падало на первой же папке,
+    # и сломал бы сборку тот, кто просто принёс снимок.
+    for f in ASSETS.rglob("*"):
+        if f.is_dir():
+            continue
+        dst = DIST / f.relative_to(ASSETS)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, dst)
     built = []
     for src in sorted(CONTENT.glob("*.json")):
         if src.name == "site.json":
