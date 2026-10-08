@@ -38,8 +38,8 @@ ITEM_FIELDS = {
     "faq": ["q", "a"],
 }
 BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"]}
-BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table"}
-HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table"}  # шапка раздела через _head()
+BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc"}
+HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table", "doc"}  # шапка раздела через _head()
 TABLE_ALIGN = {"right"}  # по умолчанию — влево; другого выравнивания у колонки не бывает
 
 # Ячейка таблицы: blocks[N].rows[M].<колонка> или blocks[N].groups[K].rows[M].<колонка>.
@@ -55,9 +55,7 @@ CARD_FILLS = {"accent", "slate"}
 # Написал страницу — убери её отсюда. Список опустел — режим предупреждений
 # выключился сам. Список живёт здесь, а не в STATUS.md: разбирать таблицу
 # из markdown ненадёжно, а этот файл и так правят вместе со страницами.
-PLANNED = {
-    "legal",
-}
+PLANNED = set()
 
 TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z][\w-]*)([^>]*)>")
 ENTITY_RE = re.compile(r"&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);")

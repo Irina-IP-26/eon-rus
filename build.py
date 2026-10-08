@@ -115,6 +115,24 @@ def b_plates(b):
     return f'<section{_pad(b)}><div class="wrap">{_head(b)}<div class="grid g2">{body}</div></div></section>'
 
 
+def b_doc(b):
+    """Длинный юридический текст: разделы с заголовками и абзацами.
+
+    Нужен для оферты и политики: ни карточки, ни таблички для договора
+    не годятся, а резать его на блоки — значит потерять нумерацию пунктов.
+    """
+    out = []
+    if b.get("meta"):
+        out.append(f'<p class="doc-meta">{raw(b["meta"])}</p>')
+    for sec in b.get("sections", []):
+        if sec.get("h"):
+            out.append(f'<h3>{e(sec["h"])}</h3>')
+        for p in sec.get("items", []):
+            out.append(f'<p>{raw(p)}</p>')
+    return (f'<section{_pad(b)}><div class="wrap">{_head(b)}'
+            f'<div class="doc">{"".join(out)}</div></div></section>')
+
+
 def b_faq(b):
     items = "".join(
         f'<details><summary>{e(q["q"])}</summary><p>{raw(q["a"])}</p></details>'
@@ -193,7 +211,8 @@ def b_table(b):
 
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
-    "steps": b_steps, "cases": b_cases, "plates": b_plates, "faq": b_faq,
+    "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc,
+    "faq": b_faq,
     "circuit": b_circuit, "form": b_form, "table": b_table,
 }
 
