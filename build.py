@@ -356,6 +356,9 @@ def main():
         built.append(f'{out.name} — {len(out.read_text(encoding="utf-8")):,} байт')
     (DIST / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
     (DIST / ".nojekyll").write_text("", encoding="utf-8")
+    # Домен публикации. Без этого файла GitHub Pages сбрасывает
+    # настройку custom domain при каждой публикации.
+    (DIST / "CNAME").write_text(site["domain"] + "\n", encoding="utf-8")
     print("Собрано:")
     for b in built:
         print("  " + b)

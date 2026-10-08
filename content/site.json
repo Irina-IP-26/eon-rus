@@ -185,5 +185,7 @@
       ]
     }
   ],
-  "form_href": "index.html#form"
+  "form_href": "index.html#form",
+  "domain": "monokiniti.com",
+  "_domain": "Тестовый домен. При переезде на еон.рус меняется здесь и в DNS, больше нигде."
 }
