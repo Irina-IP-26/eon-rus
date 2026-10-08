@@ -56,7 +56,6 @@ CARD_FILLS = {"accent", "slate"}
 # выключился сам. Список живёт здесь, а не в STATUS.md: разбирать таблицу
 # из markdown ненадёжно, а этот файл и так правят вместе со страницами.
 PLANNED = {
-    "custom",
     "about", "buy", "support", "docs", "partners", "articles", "legal",
 }
 
