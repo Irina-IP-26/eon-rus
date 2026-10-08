@@ -38,8 +38,8 @@ ITEM_FIELDS = {
     "faq": ["q", "a"],
 }
 BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"]}
-BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc"}
-HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table", "doc"}  # шапка раздела через _head()
+BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc", "calcgen"}
+HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table", "doc", "calcgen"}  # шапка раздела через _head()
 TABLE_ALIGN = {"right"}  # по умолчанию — влево; другого выравнивания у колонки не бывает
 
 # Ячейка таблицы: blocks[N].rows[M].<колонка> или blocks[N].groups[K].rows[M].<колонка>.

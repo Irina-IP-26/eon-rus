@@ -133,6 +133,35 @@ def b_doc(b):
             f'<div class="doc">{"".join(out)}</div></div></section>')
 
 
+def b_calcgen(b):
+    """Калькулятор «генератор или накопитель».
+
+    Единственный интерактивный блок на сайте. Арифметика открыта
+    и расписана на странице: читатель должен иметь возможность
+    проверить нас, а не поверить на слово.
+    """
+    fields = "".join(
+        f'<label for="{attr(f,"id")}">{e(f["label"])}'
+        f'<input id="{attr(f,"id")}" type="number" inputmode="decimal" '
+        f'value="{attr(f,"value")}" step="{attr(f,"step")}" min="0">'
+        f'<small>{e(f.get("hint",""))}</small></label>'
+        for f in b["fields"]
+    )
+    data = "".join(f' data-{k}="{attr(b["consts"], k)}"' for k in b["consts"])
+    return f"""<section{_pad(b)}><div class="wrap">{_head(b)}
+  <div class="calcgen" id="calcgen"{data}>
+    <div class="cg-in">{fields}</div>
+    <div class="cg-out">
+      <div class="cg-card"><small>Генератор</small><b id="cg-gen">—</b><span>за киловатт-час</span></div>
+      <div class="cg-card accent"><small>Накопитель</small><b id="cg-sto">—</b><span>за киловатт-час</span></div>
+      <div class="cg-card"><small>Разница</small><b id="cg-ratio">—</b><span>во столько раз дороже генератор</span></div>
+    </div>
+    <p class="cg-note" id="cg-note"></p>
+    <p class="cg-detail" id="cg-detail"></p>
+  </div>
+</div></section>"""
+
+
 def b_faq(b):
     items = "".join(
         f'<details><summary>{e(q["q"])}</summary><p>{raw(q["a"])}</p></details>'
@@ -211,7 +240,7 @@ def b_table(b):
 
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
-    "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc,
+    "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc, "calcgen": b_calcgen,
     "faq": b_faq,
     "circuit": b_circuit, "form": b_form, "table": b_table,
 }
@@ -411,8 +440,20 @@ PAGE = """<!doctype html>
 
 # ─────────────────────────────── сборка ───────────────────────────────
 
+# Скрипт подключается только на тех страницах, где он нужен:
+# калькулятор лежит в отдельном файле и не грузится на остальных
+# семнадцати страницах, которым он ни к чему.
+BLOCK_SCRIPTS = {"calcgen": "calc-generator.js"}
+
+
 def render(page, site):
     body = []
+    needed = []
+    for b in page["blocks"]:
+        src = BLOCK_SCRIPTS.get(b["type"])
+        if src and src not in needed:
+            needed.append(src)
+    extra_scripts = "".join(f'\n<script src="{s}" defer></script>' for s in needed)
     for b in page["blocks"]:
         fn = BLOCKS.get(b["type"])
         if fn is None:
@@ -422,7 +463,8 @@ def render(page, site):
         title=e(page["title"]), descr=e(page.get("description", "")),
         draft=site["draft"], logo_defs=logo_defs(site),
         header=header(site, page["slug"] + ".html"),
-        body="\n".join(body), footer=footer(site), script=SCRIPT,
+        body="\n".join(body), footer=footer(site),
+        script=SCRIPT + extra_scripts,
     )
 
 
