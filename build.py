@@ -254,8 +254,8 @@ def header(site, current):
       <span class="brand-tag">{e(site["tagline"])}</span>
       <span class="top-sp"></span>
       <div class="top-c">
-        <a href="{e(site.get("form_href", "#form"))}">{e(site["email"])}</a>
-        <a href="{e(site.get("form_href", "#form"))}">{e(site["phone"])}</a>
+        <a href="mailto:{e(site["email"])}">{e(site["email"])}</a>
+        <a href="tel:{e(site["phone_tel"])}">{e(site["phone"])}</a>
       </div>
       <a class="pill" href="{e(site.get("form_href", "#form"))}">{e(site["cta"])}</a>
     </div>
