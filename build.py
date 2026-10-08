@@ -317,8 +317,8 @@ def footer(site):
             sub = "".join(
                 f'<li><a href="{attr(i, "href")}">{e(i["label"])}</a></li>' for i in col["items2"]
             )
-            extra = f'<h4 style="margin-top:20px">{e(col["head2"])}</h4><ul>{sub}</ul>'
-        cols.append(f'<div><h4>{e(col["head"])}</h4><ul>{"".join(items)}</ul>{extra}</div>')
+            extra = f'<h2 style="margin-top:20px">{e(col["head2"])}</h2><ul>{sub}</ul>'
+        cols.append(f'<div><h2>{e(col["head"])}</h2><ul>{"".join(items)}</ul>{extra}</div>')
     return f"""<footer>
   <div class="wrap">
     <div class="f-top">
