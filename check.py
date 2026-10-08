@@ -51,6 +51,10 @@ ENTITY_RE = re.compile(r"&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);")
 class Report:
     """Ошибки, сгруппированные по месту: странице, общему файлу, сборке."""
 
+    # Виды, которые НЕ валят сборку: пока идёт первая волна, ссылки на
+    # ещё не написанные страницы — это нормальное состояние работы, а не поломка.
+    SOFT_KINDS = {"ненаписанная страница"}
+
     def __init__(self):
         self.groups = {}
 
@@ -59,6 +63,13 @@ class Report:
 
     def count(self):
         return sum(len(v) for v in self.groups.values())
+
+    def hard(self):
+        """Ошибки, из-за которых сборку публиковать нельзя."""
+        return sum(1 for v in self.groups.values() for k, _ in v if k not in self.SOFT_KINDS)
+
+    def soft(self):
+        return self.count() - self.hard()
 
 
 def page_group(slug):
@@ -298,7 +309,7 @@ def check_site(site, slugs, rep):
         if page and page.removesuffix(".html") not in slugs:
             missing.setdefault(page, []).append(where)
     for page, wheres in sorted(missing.items()):
-        rep.add(SITE_GROUP, "меню", f"{page}: страницы нет (нужен content/{page.removesuffix('.html')}.json)\n"
+        rep.add(SITE_GROUP, "ненаписанная страница", f"{page}: страницы нет (нужен content/{page.removesuffix('.html')}.json)\n"
                                     f"        ссылаются: " + "\n                   ".join(wheres))
 
     # draft — служебная полоса «макет»: build.py выводит её как разметку, и <b> в ней
@@ -402,9 +413,12 @@ def check_dist(pages, data, site_missing, rep):
                 if target and not (DIST / target).is_file():
                     if link["zone"] != "body" and target in site_missing:
                         continue  # уже сказано в разделе site.json
-                    problem = ("ссылка", f"страницы {target} нет "
-                                         f"(не собрана: нет content/{target.removesuffix('.html')}.json)"
-                               if target.endswith(".html") else f"файла {target} нет в dist/")
+                    if target.endswith(".html"):
+                        problem = ("ненаписанная страница",
+                                   f"страницы {target} нет "
+                                   f"(не собрана: нет content/{target.removesuffix('.html')}.json)")
+                    else:
+                        problem = ("ссылка", f"файла {target} нет в dist/")
                 elif anchor:
                     tp = pages.get(target) if target else p
                     if tp is not None and anchor not in tp.ids:
@@ -459,12 +473,24 @@ def print_report(rep, stats):
     order = sorted(rep.groups, key=lambda g: (g == BUILD_GROUP, g == ROBOTS_GROUP, g == SITE_GROUP, g))
     for g in order:
         items = rep.groups[g]
-        print(f"✗ {g} — {len(items)}")
-        for kind, msg in items:
+        hard = [i for i in items if i[0] not in Report.SOFT_KINDS]
+        soft = [i for i in items if i[0] in Report.SOFT_KINDS]
+        mark = "✗" if hard else "·"
+        tail = f" — {len(hard)}" if hard else ""
+        tail += f" (+{len(soft)} ждут своей страницы)" if soft and hard else ""
+        if soft and not hard:
+            tail = f" — {len(soft)} ждут своей страницы"
+        print(f"{mark} {g}{tail}")
+        for kind, msg in hard + soft:
             print(f"    [{kind}] {msg}")
         print()
-    n = rep.count()
-    print(f"Итого: {n} {plural(n, 'ошибка', 'ошибки', 'ошибок')} "
+    h, w = rep.hard(), rep.soft()
+    parts = []
+    if h:
+        parts.append(f"{h} {plural(h, 'ошибка', 'ошибки', 'ошибок')}")
+    if w:
+        parts.append(f"{w} {plural(w, 'предупреждение', 'предупреждения', 'предупреждений')}")
+    print(f"Итого: {' и '.join(parts)} "
           f"в {len(rep.groups)} {plural(len(rep.groups), 'месте', 'местах', 'местах')} ({stats}).")
 
 
@@ -496,7 +522,13 @@ def main():
         links = sum(len(p.links) for p in pages.values())
         stats += f", собрано: {len(pages)}, ссылок проверено: {links}"
     print_report(rep, stats)
-    sys.exit(1 if rep.groups else 0)
+    if rep.soft() and not rep.hard():
+        print("\nОшибок нет. Предупреждений: "
+              f"{rep.soft()} — это ссылки на страницы, которые ещё не написаны.\n"
+              "Пока идёт первая волна, это рабочее состояние: сборку они не валят.")
+    elif rep.soft():
+        print(f"\nИз них предупреждений: {rep.soft()} (ненаписанные страницы, сборку не валят).")
+    sys.exit(1 if rep.hard() else 0)
 
 
 if __name__ == "__main__":
