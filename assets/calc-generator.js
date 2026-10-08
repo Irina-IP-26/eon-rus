@@ -109,9 +109,7 @@
           + "топлива. Накопитель здесь берут не ради экономии, а ради того, "
           + "что он включается сам, не шумит и не травит выхлопом.";
       } else {
-        paybackText = "Разница в цене окупается примерно за "
-          + (Math.round(years * 10) / 10).toString().replace(".", ",") + " "
-          + plural(Math.round(years), "год", "года", "лет")
+        paybackText = "Разница в цене окупается примерно за " + term(years)
           + ": это " + money(saveYear) + " экономии в год. "
           + "Дальше накопитель работает в плюс.";
       }
@@ -122,6 +120,22 @@
       + (Math.round(litPerHour * 10) / 10).toString().replace(".", ",")
       + " л/ч, топлива на " + money(genFuelDay) + " в сутки. "
       + "Полезно при этом " + Math.round(genUseful) + " кВт·ч.");
+  }
+
+  function term(years) {
+    // По-русски дробное число всегда требует «года»: «0,8 года», «4,9 года».
+    // Целое склоняется обычным порядком. А меньше года понятнее в месяцах:
+    // «за 0,1 года» читатель переводит в уме, и зря.
+    if (years < 1) {
+      var m = Math.max(1, Math.round(years * 12));
+      return m + " " + plural(m, "месяц", "месяца", "месяцев");
+    }
+    var r = Math.round(years * 10) / 10;
+    if (Math.abs(r - Math.round(r)) < 0.05) {
+      var w = Math.round(r);
+      return w + " " + plural(w, "год", "года", "лет");
+    }
+    return r.toString().replace(".", ",") + " года";
   }
 
   function plural(n, one, few, many) {
