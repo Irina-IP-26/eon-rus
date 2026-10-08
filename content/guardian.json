@@ -14,7 +14,7 @@
         },
         {
           "label": "Модельный ряд",
-          "href": "#lineup",
+          "href": "guardian-lineup.html",
           "ghost": true
         }
       ],
@@ -169,7 +169,7 @@
           }
         }
       ],
-      "id": "lineup"
+      "id": "cases-style"
     },
     {
       "type": "circuit",
