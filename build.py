@@ -40,7 +40,8 @@ def b_hero(b):
         f'<a class="pill{" ghost" if c.get("ghost") else ""}" href="{attr(c,"href")}">{e(c["label"])}</a>'
         for c in b.get("cta", [])
     )
-    plate = _plate(b["plate"]) if b.get("plate") else ""
+    plate = _shot(b.get("image")) + (_plate(b["plate"]) if b.get("plate") else "")
+    plate = f'<div>{plate}</div>' if plate else ""
     i = f' id="{attr(b, "id")}"' if b.get("id") else ""
     return f"""<section class="hero"{i}>
   <div class="wrap hero-grid">
@@ -63,7 +64,7 @@ def b_figs(b):
     )
     extra = " f3" if n == 3 else ""
     return f"""<section{_pad(b)}>
-  <div class="wrap"><div class="figs{extra}">{items}</div></div>
+  <div class="wrap">{_head(b)}<div class="figs{extra}">{items}</div></div>
 </section>"""
 
 
@@ -74,6 +75,8 @@ def b_cards(b):
         parts = []
         if c.get("chip"):
             parts.append(f'<span class="chip{" calc" if c.get("chip_accent") else ""}">{e(c["chip"])}</span>')
+        if c.get("image"):
+            parts.append(_shot(c["image"]))
         parts.append(f'<h3>{e(c["title"])}</h3><div class="rule"></div>')
         if c.get("text"):
             parts.append(f'<p>{raw(c["text"])}</p>')
@@ -100,7 +103,8 @@ def b_steps(b):
 
 def b_cases(b):
     items = "".join(
-        f'<div class="case"><div class="meta">{e(c["meta"])}</div><h3>{e(c["title"])}</h3><p>{raw(c["text"])}</p></div>'
+        f'<div class="case">{_shot(c.get("image"))}<div class="meta">{e(c["meta"])}</div>'
+        f'<h3>{e(c["title"])}</h3><p>{raw(c["text"])}</p></div>'
         for c in b["items"]
     )
     return f'<section{_pad(b)}><div class="wrap">{_head(b)}<div class="grid g3">{items}</div></div></section>'
@@ -176,6 +180,25 @@ def _head(b):
     q = f' <span class="q">{raw(b["h2q"])}</span>' if b.get("h2q") else ""
     lede = f'<p class="lede">{raw(b["lede"])}</p>' if b.get("lede") else ""
     return f'<div class="head"><div class="eyebrow">{e(b.get("eyebrow",""))}</div><div><h2>{raw(b["h2"])}{q}</h2>{lede}</div></div>'
+
+
+def _shot(img):
+    """Изображение или подписанное пустое место под него.
+
+    Поля: src (путь к файлу), alt (альтернативный текст), caption (подпись),
+    need (что именно должно быть на снимке — показывается, пока файла нет).
+    """
+    if not img:
+        return ""
+    if img.get("src"):
+        inner = f'<img src="{attr(img, "src")}" alt="{attr(img, "alt")}" loading="lazy">'
+        box = f'<div class="shot">{inner}</div>'
+    else:
+        need = e(img.get("need", "место под изображение"))
+        box = f'<div class="shot empty"><span><b>фото</b>{need}</span></div>'
+    if img.get("caption"):
+        return f'<figure class="shot-wrap">{box}<figcaption>{e(img["caption"])}</figcaption></figure>'
+    return box
 
 
 def _plate(p):
