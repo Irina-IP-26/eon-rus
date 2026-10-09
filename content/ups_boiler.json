@@ -175,20 +175,13 @@
           "label": "Энергоёмкость",
           "align": "right",
           "mono": true
-        },
-        {
-          "key": "price",
-          "label": "Цена",
-          "align": "right",
-          "mono": true
         }
       ],
       "rows": [
         {
           "model": "ИБП для котла",
           "power": "1,5 кВт",
-          "cap": "2,56 кВт·ч",
-          "price": "180 000 ₽"
+          "cap": "2,56 кВт·ч"
         }
       ]
     },
