@@ -9,7 +9,7 @@
 """
 import hashlib, json, html, pathlib, re, shutil, sys
 
-from seo import canonical_link, host, og_meta, origin, page_lastmod, page_url, sitemap_xml
+from seo import canonical_link, og_meta, origin, page_lastmod, page_url, sitemap_xml
 
 ROOT = pathlib.Path(__file__).parent
 CONTENT = ROOT / "content"
@@ -529,10 +529,6 @@ def main():
         "User-agent: *\n"
         "Disallow: /\n"
         f"Sitemap: {origin(site['domain'])}/sitemap.xml\n", encoding="utf-8")
-    (DIST / ".nojekyll").write_text("", encoding="utf-8")
-    # Домен публикации. Без этого файла GitHub Pages сбрасывает
-    # настройку custom domain при каждой публикации.
-    (DIST / "CNAME").write_text(host(site["domain"]) + "\n", encoding="utf-8")
     print("Собрано:")
     for b in built:
         print("  " + b)

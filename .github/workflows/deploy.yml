@@ -1,0 +1,72 @@
+name: build-and-deploy
+
+# Сборка и выкладка сайта на собственный сервер (nginx).
+# GitHub здесь — хранилище исходников и сборочный цех, но не площадка:
+# готовый каталог dist/ уезжает на сервер по SSH.
+#
+# Адрес сервера, пользователь, каталог и ключ лежат в секретах репозитория,
+# а не в этом файле: репозиторий публичный. Как их завести — _sources/выкладка.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Полная история: даты в карте сайта берутся из коммитов, менявших
+          # content/<страница>.json. В копии с одним коммитом у всех страниц
+          # оказалась бы одна дата — ложь, которая выглядит честной.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Проверить сайт
+        run: python3 check.py
+
+      - name: Собрать сайт
+        run: python3 build.py
+
+      - name: Подготовить доступ к серверу
+        env:
+          KEY: ${{ secrets.DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Выложить на сервер
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          SRV_USER: ${{ secrets.DEPLOY_USER }}
+          DEST: ${{ secrets.DEPLOY_PATH }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          # Косая черта в конце dist/ обязательна: без неё rsync положит
+          # на сервер не содержимое каталога, а сам каталог внутрь каталога.
+          rsync -az --delete --chmod=D755,F644 \
+            -e "ssh -i ~/.ssh/deploy_key -p ${PORT:-22} -o StrictHostKeyChecking=yes" \
+            dist/ "$SRV_USER@$HOST:$DEST/"
+
+      - name: Проверить, что сайт отвечает
+        run: |
+          # Запрос идёт по имени домена, а не по адресу сервера: так проверяется
+          # вся цепочка — ДНС, nginx и выложенные файлы разом.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+                 "https://xn--e1aqc.xn--p1acf/?deploy=${GITHUB_SHA::7}")
+          echo "Главная страница ответила: $code"
+          test "$code" = "200"
