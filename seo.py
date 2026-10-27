@@ -20,16 +20,22 @@ ROOT = pathlib.Path(__file__).parent
 
 # ─────────────────────────────── адреса ───────────────────────────────
 
-def origin(domain):
-    """https:// + домен. Кириллический домен (еон.рус) — в записи для протоколов
-    (xn--…): этого требует протокол карты сайта, и так адрес одинаков везде."""
-    host = domain.strip().strip("/").lower()
-    host = host.removeprefix("https://").removeprefix("http://")
+def host(domain):
+    """Домен в записи для протоколов: еон.рус → xn--e1aqc.xn--p1acf. Нужен не
+    только адресам: файл CNAME для GitHub Pages тоже читается как ASCII, и
+    кириллица в нём молча ломает привязку домена."""
+    h = domain.strip().strip("/").lower()
+    h = h.removeprefix("https://").removeprefix("http://")
     try:
-        host = host.encode("idna").decode("ascii")
+        h = h.encode("idna").decode("ascii")
     except UnicodeError:
         pass  # кривой домен покажет проверка; здесь не падаем
-    return f"https://{host}"
+    return h
+
+
+def origin(domain):
+    """https:// + домен в записи для протоколов."""
+    return f"https://{host(domain)}"
 
 
 def page_url(domain, slug):
