@@ -58,7 +58,11 @@ jobs:
         run: |
           # Косая черта в конце dist/ обязательна: без неё rsync положит
           # на сервер не содержимое каталога, а сам каталог внутрь каталога.
-          rsync -az --delete --chmod=D755,F644 \
+          #
+          # .well-known исключён из выкладки, и потому же не удаляется: через
+          # него Let's Encrypt продлевает сертификат. Снесёшь — сайт однажды
+          # останется без HTTPS, причём не сразу, а через три месяца.
+          rsync -az --delete --exclude='/.well-known/' --chmod=D755,F644 \
             -e "ssh -i ~/.ssh/deploy_key -p ${PORT:-22} -o StrictHostKeyChecking=yes" \
             dist/ "$SRV_USER@$HOST:$DEST/"
 
