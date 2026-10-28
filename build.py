@@ -292,11 +292,63 @@ def b_subnav(b, slug):
 </nav>"""
 
 
+def b_lineup(b):
+    """Модельный ряд: подбор, карточки и сравнение выбранного.
+
+    Таблица как витрина отвечает на вопрос «какие бывают», а покупатель
+    приходит с вопросом «какая мне». Поэтому сверху фильтры, в середине
+    карточки с местом под фото, а таблица остаётся — но как инструмент
+    сравнения того, что покупатель отобрал сам.
+
+    Фильтры честные: это настоящие графы ТТХ, а не придуманные нами
+    категории нагрузки. Подписи поясняют, что стоит за цифрой.
+    """
+    фильтры = "".join(
+        f'<div class="lf"><span class="lf-t">{e(f["label"])}</span><div class="lf-b">' +
+        "".join(
+            f'<button type="button" class="chip-b{" on" if n == 0 else ""}" '
+            f'data-key="{attr(f, "key")}" data-val="{attr(o, "value")}">{e(o["label"])}</button>'
+            for n, o in enumerate(f["options"])
+        ) + '</div></div>'
+        for f in b["filters"]
+    )
+    карточки = []
+    for i in b["items"]:
+        данные = "".join(f' data-{k}="{e(str(v))}"' for k, v in i.get("data", {}).items())
+        строки = "".join(
+            f'<div class="ls-r"><span>{e(s["k"])}</span><b>{raw(s["v"])}</b></div>'
+            for s in i["specs"]
+        )
+        карточки.append(
+            f'<article class="lcard"{данные}>{_shot(i.get("image"))}'
+            f'<h3>{e(i["title"])}</h3><div class="rule"></div>'
+            f'<div class="ls">{строки}</div>'
+            f'<label class="lcmp"><input type="checkbox" value="{attr(i, "title")}"> '
+            f'<span>в сравнение</span></label></article>'
+        )
+    return f"""<section{_pad(b)} id="{attr(b, "id", "lineup")}">
+  <div class="wrap">{_head(b)}
+    <div class="lfilters">{фильтры}<button type="button" class="lf-reset" hidden>Сбросить</button></div>
+    <p class="lcount" aria-live="polite"></p>
+    <div class="grid g3 lgrid">{"".join(карточки)}</div>
+    <div class="lcmp-bar" hidden>
+      <div class="wrap">
+        <span class="lcmp-n"></span>
+        <button type="button" class="pill" data-cmp-show>Сравнить</button>
+        <button type="button" class="pill ghost" data-cmp-clear>Очистить</button>
+      </div>
+    </div>
+    <div class="lcmp-out" hidden></div>
+  </div>
+</section>"""
+
+
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
     "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc, "calcgen": b_calcgen,
     "faq": b_faq,
     "circuit": b_circuit, "form": b_form, "table": b_table, "subnav": b_subnav,
+    "lineup": b_lineup,
 }
 
 # ───────────────────────── вспомогательная вёрстка ─────────────────────────
@@ -512,7 +564,7 @@ PAGE = """<!doctype html>
 # Скрипт подключается только на тех страницах, где он нужен:
 # калькулятор лежит в отдельном файле и не грузится на остальных
 # семнадцати страницах, которым он ни к чему.
-BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js", "cases": "cases-more.js"}
+BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js", "cases": "cases-more.js", "lineup": "lineup.js"}
 
 
 def render(page, site):

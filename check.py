@@ -43,8 +43,9 @@ ITEM_FIELDS = {
     "faq": ["q", "a"],
 }
 BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"],
-                "subnav": ["title", "href", "items"]}
-BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc", "calcgen", "subnav"}
+                "subnav": ["title", "href", "items"],
+                "lineup": ["filters", "items"]}
+BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc", "calcgen", "subnav", "lineup"}
 HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table", "doc", "calcgen"}  # шапка раздела через _head()
 TABLE_ALIGN = {"right"}  # по умолчанию — влево; другого выравнивания у колонки не бывает
 
@@ -480,6 +481,30 @@ def table_bounds(page, g, rep):
                     for n, u in found:
                         e = out.setdefault(norm_unit(u), {"vals": {}, "unit": u, "col": col.get("label")})
                         e["vals"].setdefault(num(n), model)
+
+    # Блок «lineup» — тот же модельный ряд, только карточками. Какие графы
+    # задают диапазон линейки, объявляет поле bounds самого блока: список
+    # подписей из specs. Остальные графы не участвуют, как и колонки таблиц.
+    for i, b in enumerate(page.get("blocks", [])):
+        if b.get("type") != "lineup":
+            continue
+        отмечено = b.get("bounds") or []
+        if not isinstance(отмечено, list):
+            rep.add(g, "диапазон", f"{block_label(i, b)}: bounds должен быть списком подписей")
+            continue
+        for it in b.get("items", []):
+            for s in it.get("specs", []):
+                if s.get("k") not in отмечено:
+                    continue
+                text = plain(str(s.get("v", "")))
+                found = [(m.group("n"), m.group("u")) for m in SINGLE_RE.finditer(text)]
+                if not found:
+                    rep.add(g, "диапазон", f"{block_label(i, b)}, графа «{s.get('k')}» с bounds: "
+                                           f"«{short(text)}» не читается как число с единицей")
+                    continue
+                for n, u in found:
+                    e = out.setdefault(norm_unit(u), {"vals": {}, "unit": u, "col": s.get("k")})
+                    e["vals"].setdefault(num(n), short(it.get("title", "")))
     return out
 
 
@@ -495,6 +520,9 @@ def lineup_rows(page):
             continue
         groups = b.get("groups") if b.get("groups") else [{"rows": b.get("rows") or []}]
         n += sum(len(g.get("rows") or []) for g in groups if isinstance(g, dict))
+    for b in page.get("blocks", []):
+        if b.get("type") == "lineup" and b.get("bounds"):
+            n += len(b.get("items") or [])
     return n
 
 
