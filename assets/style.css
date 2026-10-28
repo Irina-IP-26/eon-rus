@@ -388,3 +388,9 @@ section.dark .shot.empty span b{color:#C3CBD4}
   .subnav ul{gap:2px 16px}
   .subnav ul a{font-size:14px}
 }
+
+
+/* ── Кнопка «показать ещё» под карточками внедрений ─────────────────── */
+.more-wrap{display:flex; justify-content:center; margin-top:28px}
+.more-wrap .pill{font-size:15px}
+.more-left{opacity:.6; font-weight:400}

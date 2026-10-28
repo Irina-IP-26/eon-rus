@@ -104,12 +104,31 @@ def b_steps(b):
 
 
 def b_cases(b):
-    items = "".join(
-        f'<div class="case">{_shot(c.get("image"))}<div class="meta">{e(c["meta"])}</div>'
-        f'<h3>{e(c["title"])}</h3><p>{raw(c["text"])}</p></div>'
-        for c in b["items"]
-    )
-    return f'<section{_pad(b)}><div class="wrap">{_head(b)}<div class="grid g3">{items}</div></div></section>'
+    """Карточки внедрений. С полем «шаг» показывает первые N, остальные
+    открываются кнопкой — на той же странице, без перезагрузки.
+
+    Скрытые карточки остаются в разметке: поисковик их видит, а посетитель
+    не получает страницу в сотню экранов.
+    """
+    шаг = b.get("шаг")
+    items = []
+    for n, c in enumerate(b["items"]):
+        скрыта = " hidden" if шаг and n >= шаг else ""
+        items.append(
+            f'<div class="case"{скрыта}>{_shot(c.get("image"))}<div class="meta">{e(c["meta"])}</div>'
+            f'<h3>{e(c["title"])}</h3><p>{raw(c["text"])}</p></div>'
+        )
+    сетка_id = f'{b.get("id", "cases")}-grid'
+    кнопка = ""
+    осталось = len(b["items"]) - (шаг or len(b["items"]))
+    if осталось > 0:
+        показать = min(шаг, осталось)
+        кнопка = (f'<div class="more-wrap"><button class="pill ghost" type="button" '
+                  f'data-more="{сетка_id}">Показать ещё {показать} '
+                  f'<span class="more-left">из {осталось}</span></button></div>')
+    return (f'<section{_pad(b)}><div class="wrap">{_head(b)}'
+            f'<div class="grid g3" id="{сетка_id}" data-step="{шаг or 0}">{"".join(items)}</div>'
+            f'{кнопка}</div></section>')
 
 
 def b_plates(b):
@@ -493,7 +512,7 @@ PAGE = """<!doctype html>
 # Скрипт подключается только на тех страницах, где он нужен:
 # калькулятор лежит в отдельном файле и не грузится на остальных
 # семнадцати страницах, которым он ни к чему.
-BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js"}
+BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js", "cases": "cases-more.js"}
 
 
 def render(page, site):
