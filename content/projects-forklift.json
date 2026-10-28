@@ -3,8 +3,40 @@
  "description": "Кто перевёл складскую технику на литий Еон: КАМАЗ, Пятёрочка, М.Видео-Эльдорадо, Метро, Макфа, Алютех, Новосибхолод. 418 тяговых батарей на 46 предприятий с марта 2017 года.",
  "blocks": [
   {
+   "type": "subnav",
+   "title": "Наши проекты",
+   "href": "projects.html",
+   "label": "Навигация по разделу «Наши проекты»",
+   "items": [
+    {
+     "label": "Тяговые батареи",
+     "href": "projects-forklift.html"
+    },
+    {
+     "label": "Скиф",
+     "href": "projects-skif.html"
+    },
+    {
+     "label": "Хранитель",
+     "href": "projects-guardian.html"
+    },
+    {
+     "label": "Энергопоток",
+     "href": "projects-energyflow.html"
+    },
+    {
+     "label": "ИБП для котла",
+     "href": "projects-ups-boiler.html"
+    },
+    {
+     "label": "Транспортируемая электростанция",
+     "href": "projects-mobile.html"
+    }
+   ]
+  },
+  {
    "type": "hero",
-   "eyebrow": "Наши проекты",
+   "eyebrow": "Выполненные работы",
    "h1": "Тяговые батареи: где они работают",
    "lede": "С марта 2017 года мы поставили 418 тяговых литий-ионных батарей на 46 предприятий — автомобильные заводы, распределительные центры торговых сетей, холодильные склады, производство. Напряжение от 12 до 80&nbsp;вольт, ёмкость от 30 до 942&nbsp;ампер-часов. Серийных среди них нет: каждая батарея проектировалась под посадочное место конкретной машины.",
    "cta": [
@@ -16,42 +48,6 @@
      "label": "О тяговых батареях",
      "href": "forklift.html",
      "ghost": true
-    },
-    {
-     "label": "Все наши проекты",
-     "href": "projects.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Скиф",
-     "href": "projects-skif.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Хранитель",
-     "href": "projects-guardian.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Энергопоток",
-     "href": "projects-energyflow.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "ИБП для котла",
-     "href": "projects-ups-boiler.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Электростанция",
-     "href": "projects-mobile.html",
-     "ghost": true,
-     "nav": true
     }
    ],
    "plate": {

@@ -364,3 +364,27 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .form-status a{color:var(--accent)}
 .form[aria-busy="true"] [type="submit"]{opacity:.6; cursor:progress}
 .hp{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden}
+
+
+/* ── Полоса подразделов «Наших проектов» ──────────────────────────────
+   Отдельная строка под шапкой, не кнопки. Подпись слева называет раздел
+   и ведёт на его страницу; активный подраздел подчёркнут. Нужна потому,
+   что названия линеек в шапке ведут на товары, а здесь — на внедрения,
+   и без подписи эти ссылки неразличимы. */
+.subnav{background:var(--card); border-bottom:1px solid var(--line)}
+.subnav .wrap{display:flex; align-items:baseline; gap:10px 24px; flex-wrap:wrap;
+  padding-block:11px}
+.subnav-t{font:600 11px/1.2 var(--mono); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); text-decoration:none; white-space:nowrap}
+.subnav-t:hover{color:var(--ink)}
+.subnav ul{display:flex; gap:2px 22px; flex-wrap:wrap; list-style:none; margin:0; padding:0}
+.subnav ul a{display:inline-block; font-size:15px; color:var(--slate); text-decoration:none;
+  padding-bottom:3px; border-bottom:2px solid transparent}
+.subnav ul a:hover{color:var(--ink); border-bottom-color:var(--line)}
+.subnav ul a[aria-current="page"]{color:var(--ink); font-weight:600;
+  border-bottom-color:var(--accent)}
+@media (max-width:640px){
+  .subnav .wrap{gap:8px 18px}
+  .subnav ul{gap:2px 16px}
+  .subnav ul a{font-size:14px}
+}

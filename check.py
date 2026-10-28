@@ -42,8 +42,9 @@ ITEM_FIELDS = {
     "cases": ["meta", "title", "text"],
     "faq": ["q", "a"],
 }
-BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"]}
-BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc", "calcgen"}
+BLOCK_FIELDS = {"hero": ["eyebrow", "h1", "lede"], "form": ["placeholder"],
+                "subnav": ["title", "href", "items"]}
+BLOCK_TYPES = {"hero", "figs", "cards", "points", "steps", "cases", "plates", "faq", "circuit", "form", "table", "doc", "calcgen", "subnav"}
 HEAD_BLOCKS = {"cards", "points", "steps", "cases", "plates", "faq", "form", "table", "doc", "calcgen"}  # шапка раздела через _head()
 TABLE_ALIGN = {"right"}  # по умолчанию — влево; другого выравнивания у колонки не бывает
 

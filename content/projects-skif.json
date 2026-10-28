@@ -3,8 +3,40 @@
  "description": "Кто взял портативные электростанции Скиф: ОМП, МЕДФАРМА, СИБМЕР, ГЕРМЕС, благотворительный фонд «Поколение нашего будущего». 127 станций от 700 до 2500 Вт·ч.",
  "blocks": [
   {
+   "type": "subnav",
+   "title": "Наши проекты",
+   "href": "projects.html",
+   "label": "Навигация по разделу «Наши проекты»",
+   "items": [
+    {
+     "label": "Тяговые батареи",
+     "href": "projects-forklift.html"
+    },
+    {
+     "label": "Скиф",
+     "href": "projects-skif.html"
+    },
+    {
+     "label": "Хранитель",
+     "href": "projects-guardian.html"
+    },
+    {
+     "label": "Энергопоток",
+     "href": "projects-energyflow.html"
+    },
+    {
+     "label": "ИБП для котла",
+     "href": "projects-ups-boiler.html"
+    },
+    {
+     "label": "Транспортируемая электростанция",
+     "href": "projects-mobile.html"
+    }
+   ]
+  },
+  {
    "type": "hero",
-   "eyebrow": "Наши проекты",
+   "eyebrow": "Выполненные работы",
    "h1": "Скиф: кто с ним работает",
    "lede": "Сто двадцать семь станций у восьми заказчиков. Скиф берут туда, где сети нет и розетку взять негде: полевые лагеря, выездная медицина, геологические работы, гуманитарные поставки. Четыре модели — от 700 до 2500&nbsp;Вт·ч, и выбор между ними определяется не ценой, а тем, что именно нужно питать.",
    "cta": [
@@ -16,42 +48,6 @@
      "label": "О Скифе",
      "href": "skif.html",
      "ghost": true
-    },
-    {
-     "label": "Все наши проекты",
-     "href": "projects.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Тяговые батареи",
-     "href": "projects-forklift.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Хранитель",
-     "href": "projects-guardian.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Энергопоток",
-     "href": "projects-energyflow.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "ИБП для котла",
-     "href": "projects-ups-boiler.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Электростанция",
-     "href": "projects-mobile.html",
-     "ghost": true,
-     "nav": true
     }
    ],
    "plate": {

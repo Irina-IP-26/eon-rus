@@ -253,11 +253,31 @@ def b_table(b):
             f'<table><thead><tr>{head}</tr></thead>{"".join(body)}</table></div></div></section>')
 
 
+def b_subnav(b, slug):
+    """Полоса подразделов: где посетитель сейчас и куда ещё может уйти.
+
+    Живёт под шапкой, отдельно от кнопок первого экрана. Подпись слева —
+    ссылка на страницу раздела: она же объясняет, куда ведут остальные
+    ссылки. Без неё «Хранитель» в полосе не отличить от «Хранителя»
+    в шапке, который ведёт на страницу товара, а не на внедрения.
+    """
+    items = []
+    for i in b["items"]:
+        cur = ' aria-current="page"' if i.get("href") == slug + ".html" else ""
+        items.append(f'<li><a href="{attr(i, "href")}"{cur}>{e(i["label"])}</a></li>')
+    return f"""<nav class="subnav" aria-label="{attr(b, "label", "Навигация по разделу")}">
+  <div class="wrap">
+    <a class="subnav-t" href="{attr(b, "href")}">{e(b["title"])}</a>
+    <ul>{"".join(items)}</ul>
+  </div>
+</nav>"""
+
+
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
     "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc, "calcgen": b_calcgen,
     "faq": b_faq,
-    "circuit": b_circuit, "form": b_form, "table": b_table,
+    "circuit": b_circuit, "form": b_form, "table": b_table, "subnav": b_subnav,
 }
 
 # ───────────────────────── вспомогательная вёрстка ─────────────────────────
@@ -488,7 +508,12 @@ def render(page, site):
         fn = BLOCKS.get(b["type"])
         if fn is None:
             raise SystemExit(f'{page["slug"]}: неизвестный тип блока "{b["type"]}"')
-        body.append(fn(b, site) if b["type"] == "form" else fn(b))
+        if b["type"] == "form":
+            body.append(fn(b, site))
+        elif b["type"] == "subnav":
+            body.append(fn(b, page["slug"]))   # полосе нужно знать, где она стоит
+        else:
+            body.append(fn(b))
     return PAGE.format(
         title=e(page["title"]), descr=e(page.get("description", "")),
         css=stamp("style.css"),

@@ -3,8 +3,40 @@
  "description": "Где стоит Хранитель: частные дома в Новосибирской области и в Горном Алтае. Исполнения Мини, Стандарт и Конструктор. Раздел пополняется по мере сбора данных.",
  "blocks": [
   {
+   "type": "subnav",
+   "title": "Наши проекты",
+   "href": "projects.html",
+   "label": "Навигация по разделу «Наши проекты»",
+   "items": [
+    {
+     "label": "Тяговые батареи",
+     "href": "projects-forklift.html"
+    },
+    {
+     "label": "Скиф",
+     "href": "projects-skif.html"
+    },
+    {
+     "label": "Хранитель",
+     "href": "projects-guardian.html"
+    },
+    {
+     "label": "Энергопоток",
+     "href": "projects-energyflow.html"
+    },
+    {
+     "label": "ИБП для котла",
+     "href": "projects-ups-boiler.html"
+    },
+    {
+     "label": "Транспортируемая электростанция",
+     "href": "projects-mobile.html"
+    }
+   ]
+  },
+  {
    "type": "hero",
-   "eyebrow": "Наши проекты",
+   "eyebrow": "Выполненные работы",
    "h1": "Хранитель: дома, где он стоит",
    "lede": "Хранитель стоит в частных домах по всей стране — от пригородных посёлков под Новосибирском до Горного Алтая. Ниже первые карточки: сеть есть, но её отключают, а в доме газовый котёл и скважина. Исполнения «Мини» и «Стандарт» закрывают такой дом целиком, а «Конструктор» — набор типовых модулей, из которых собирается система нужного размера, когда готовые исполнения в объект не попадают.",
    "cta": [
@@ -16,42 +48,6 @@
      "label": "О Хранителе",
      "href": "guardian.html",
      "ghost": true
-    },
-    {
-     "label": "Все наши проекты",
-     "href": "projects.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Тяговые батареи",
-     "href": "projects-forklift.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Скиф",
-     "href": "projects-skif.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Энергопоток",
-     "href": "projects-energyflow.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "ИБП для котла",
-     "href": "projects-ups-boiler.html",
-     "ghost": true,
-     "nav": true
-    },
-    {
-     "label": "Электростанция",
-     "href": "projects-mobile.html",
-     "ghost": true,
-     "nav": true
     }
    ],
    "plate": {
