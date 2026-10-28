@@ -273,9 +273,20 @@ footer .brand{color:var(--accent); margin-bottom:14px}
 }
 .shot img{width:100%; height:100%; object-fit:cover; display:block}
 .shot.empty{
-  border:1px dashed var(--line); background:transparent;
+  /* Заливка темнее фона страницы: без неё видна только пунктирная рамка,
+     и непонятно, где кадр начинается и где заканчивается. Чёрный
+     с прозрачностью, а не цвет из палитры, — чтобы правило работало
+     и на светлой теме, и на тёмной, и на тёмных секциях, где за кадром
+     разный фон. Значения разные: на тёмной теме фон уже почти чёрный,
+     и шести процентов там не видно. */
+  border:1px dashed var(--line); background:rgba(0,0,0,.06);
   display:flex; align-items:center; justify-content:center; padding:18px; text-align:center;
 }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .shot.empty{background:rgba(0,0,0,.28)}
+}
+:root[data-theme="dark"] .shot.empty{background:rgba(0,0,0,.28)}
+section.dark .shot.empty{background:rgba(0,0,0,.20)}
 .shot.empty span{
   font-family:var(--mono); font-size:11.5px; line-height:1.55; letter-spacing:.03em; color:var(--mist);
 }
