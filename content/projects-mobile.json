@@ -35,6 +35,57 @@
    ]
   },
   {
+   "type": "cards",
+   "id": "nav-top",
+   "pad": "tight",
+   "eyebrow": "Навигация по разделу",
+   "cols": 3,
+   "items": [
+    {
+     "title": "Все наши проекты",
+     "link": {
+      "href": "projects.html",
+      "label": "На страницу раздела"
+     }
+    },
+    {
+     "title": "Тяговые батареи",
+     "link": {
+      "href": "projects-forklift.html",
+      "label": "Смотреть"
+     }
+    },
+    {
+     "title": "Скиф",
+     "link": {
+      "href": "projects-skif.html",
+      "label": "Смотреть"
+     }
+    },
+    {
+     "title": "Хранитель",
+     "link": {
+      "href": "projects-guardian.html",
+      "label": "Смотреть"
+     }
+    },
+    {
+     "title": "Энергопоток",
+     "link": {
+      "href": "projects-energyflow.html",
+      "label": "Смотреть"
+     }
+    },
+    {
+     "title": "ИБП для котла",
+     "link": {
+      "href": "projects-ups-boiler.html",
+      "label": "Смотреть"
+     }
+    }
+   ]
+  },
+  {
    "type": "hero",
    "eyebrow": "Выполненные работы",
    "h1": "Транспортируемая электростанция: выезды",
@@ -116,7 +167,7 @@
     },
     {
      "title": "Энергопоток",
-     "text": "22 системы на 7 объектах",
+     "text": "22 системы на 11 площадках",
      "link": {
       "href": "projects-energyflow.html",
       "label": "Смотреть проекты"
