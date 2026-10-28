@@ -73,38 +73,7 @@
   },
   {
    "label": "Наши проекты",
-   "children": [
-    {
-     "label": "Тяговые батареи",
-     "href": "projects-forklift.html",
-     "sub": "46 предприятий, 418 батарей"
-    },
-    {
-     "label": "Скиф",
-     "href": "projects-skif.html",
-     "sub": "127 станций у 8 заказчиков"
-    },
-    {
-     "label": "Хранитель",
-     "href": "projects-guardian.html",
-     "sub": "дома: объекты и конфигурации"
-    },
-    {
-     "label": "Энергопоток",
-     "href": "projects-energyflow.html",
-     "sub": "22 системы на 7 объектах"
-    },
-    {
-     "label": "ИБП для котла",
-     "href": "projects-ups-boiler.html",
-     "sub": "карточки собираются"
-    },
-    {
-     "label": "Транспортируемая электростанция",
-     "href": "projects-mobile.html",
-     "sub": "карточки собираются"
-    }
-   ]
+   "href": "projects.html"
   }
  ],
  "footer": [

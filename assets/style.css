@@ -259,6 +259,13 @@ footer .brand{color:var(--accent); margin-bottom:14px}
   padding:10px; display:none; box-shadow:0 14px 34px rgba(30,38,48,.14); z-index:40;
 }
 .nav .drop:hover ul,.nav .drop:focus-within ul{display:block}
+/* Мост через зазор между кнопкой и выпадающим списком.
+   У списка margin-top:10px, и эти десять пикселей — мёртвая полоса:
+   курсор, идущий от кнопки к пункту меню, выходит из области наведения,
+   :hover слетает, и меню закрывается раньше, чем до него доходят.
+   Полоса прозрачная и ничего не двигает — она лишь принадлежит списку,
+   поэтому наведение на неё держит меню открытым. */
+.nav .drop ul::before{content:""; position:absolute; left:0; right:0; top:-14px; height:14px}
 .nav .drop ul a{
   display:block; padding:9px 12px; border-radius:8px; border:0; font-weight:600;
   font-size:14.5px; color:var(--ink);
