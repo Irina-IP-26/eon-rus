@@ -105,26 +105,6 @@
      "sub": "карточки собираются"
     }
    ]
-  },
-  {
-   "label": "Где купить",
-   "href": "buy.html"
-  },
-  {
-   "label": "Документация",
-   "href": "docs.html"
-  },
-  {
-   "label": "Поддержка",
-   "href": "support.html"
-  },
-  {
-   "label": "Статьи",
-   "href": "articles.html"
-  },
-  {
-   "label": "О компании",
-   "href": "about.html"
   }
  ],
  "footer": [
