@@ -475,8 +475,12 @@ def logo_defs(site):
     выводился целиком: два килобайта одинаковых контуров на каждой странице.
     Теперь контуры объявляются один раз, а оба места ссылаются на них.
     """
-    paths = "".join(f'<path d="{d}"/>' if d.startswith("M") else f'<polygon points="{d}"/>'
-                    for d in site["logo"])
+    # У знака (первый контур) окошки — это вложенные контуры. В исходнике
+    # CorelDRAW у него fill-rule:evenodd; без этого правила окошки
+    # заливаются цветом и знак превращается в сплошной круг с прорезью.
+    paths = "".join((f'<path fill-rule="evenodd" d="{d}"/>' if i == 0 else f'<path d="{d}"/>')
+                    if d.startswith("M") else f'<polygon points="{d}"/>'
+                    for i, d in enumerate(site["logo"]))
     return (f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">'
             f'<symbol id="eon-logo" viewBox="{site["logo_viewbox"]}">{paths}</symbol></svg>')
 
