@@ -98,7 +98,8 @@
         {
           "title": "Хранитель Базовый S",
           "image": {
-            "need": "Хранитель Базовый S в сборе"
+            "src": "img/guardian-card-bazovuyi-s.jpg",
+            "alt": "Хранитель Базовый S в сборе"
           },
           "data": {
             "phase": "1",
@@ -127,7 +128,8 @@
         {
           "title": "Хранитель Базовый M",
           "image": {
-            "need": "Хранитель Базовый M в сборе"
+            "src": "img/guardian-card-bazovuyi-m.jpg",
+            "alt": "Хранитель Базовый M в сборе"
           },
           "data": {
             "phase": "1",
@@ -156,7 +158,8 @@
         {
           "title": "Хранитель Базовый L",
           "image": {
-            "need": "Хранитель Базовый L в сборе"
+            "src": "img/guardian-card-bazovuyi-l.jpg",
+            "alt": "Хранитель Базовый L в сборе"
           },
           "data": {
             "phase": "1",
@@ -243,7 +246,8 @@
         {
           "title": "Хранитель Оптима Про",
           "image": {
-            "need": "Хранитель Оптима Про в сборе"
+            "src": "img/guardian-card-optima-pro-2mod.jpg",
+            "alt": "Хранитель Оптима Про в сборе"
           },
           "data": {
             "phase": "1",
@@ -272,7 +276,8 @@
         {
           "title": "Хранитель Стандарт",
           "image": {
-            "need": "Хранитель Стандарт в сборе"
+            "src": "img/guardian-card-standart-1mod-v2.jpg",
+            "alt": "Хранитель Стандарт в сборе"
           },
           "data": {
             "phase": "1",
@@ -301,7 +306,8 @@
         {
           "title": "Хранитель Стандарт Про",
           "image": {
-            "need": "Хранитель Стандарт Про в сборе"
+            "src": "img/guardian-card-standart-pro-2mod-v2.jpg",
+            "alt": "Хранитель Стандарт Про в сборе"
           },
           "data": {
             "phase": "1",
@@ -330,7 +336,8 @@
         {
           "title": "Хранитель Оптима+",
           "image": {
-            "need": "Хранитель Оптима+ в сборе"
+            "src": "img/guardian-card-optima-plus-1mod.jpg",
+            "alt": "Хранитель Оптима+ в сборе"
           },
           "data": {
             "phase": "3",
@@ -359,7 +366,8 @@
         {
           "title": "Хранитель Оптима+ Про",
           "image": {
-            "need": "Хранитель Оптима+ Про в сборе"
+            "src": "img/guardian-card-optima-plus-pro-2mod.jpg",
+            "alt": "Хранитель Оптима+ Про в сборе"
           },
           "data": {
             "phase": "3",
@@ -388,7 +396,8 @@
         {
           "title": "Хранитель Стандарт+",
           "image": {
-            "need": "Хранитель Стандарт+ в сборе"
+            "src": "img/guardian-card-standart-plus-2mod.jpg",
+            "alt": "Хранитель Стандарт+ в сборе"
           },
           "data": {
             "phase": "3",
@@ -417,7 +426,8 @@
         {
           "title": "Хранитель Стандарт+ шкаф 15",
           "image": {
-            "need": "Хранитель Стандарт+ шкаф 15 в сборе"
+            "src": "img/guardian-card-standart-plus-shkaf15.jpg",
+            "alt": "Хранитель Стандарт+ шкаф 15 в сборе"
           },
           "data": {
             "phase": "3",
@@ -446,7 +456,8 @@
         {
           "title": "Хранитель Стандарт+ шкаф 33",
           "image": {
-            "need": "Хранитель Стандарт+ шкаф 33 в сборе"
+            "src": "img/guardian-card-standart-plus-shkaf33.jpg",
+            "alt": "Хранитель Стандарт+ шкаф 33 в сборе"
           },
           "data": {
             "phase": "3",
@@ -475,7 +486,8 @@
         {
           "title": "Хранитель Стандарт+ шкаф 44",
           "image": {
-            "need": "Хранитель Стандарт+ шкаф 44 в сборе"
+            "src": "img/guardian-card-shkaf44.jpg",
+            "alt": "Хранитель Стандарт+ шкаф 44 в сборе"
           },
           "data": {
             "phase": "3",
@@ -533,7 +545,8 @@
         {
           "title": "Хранитель МаксиПро",
           "image": {
-            "need": "Хранитель МаксиПро в сборе"
+            "src": "img/guardian-card-maxi-pro.jpg",
+            "alt": "Хранитель МаксиПро в сборе"
           },
           "data": {
             "phase": "3",
