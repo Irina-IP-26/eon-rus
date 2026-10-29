@@ -453,6 +453,10 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .lu-top .cta{margin:24px 0 40px}
 .lu-aside{position:sticky; top:20px}
 .lu-aside .shot{aspect-ratio:4/5; margin-bottom:14px}
+/* Заголовок для чтения с экрана и поисковика, невидимый глазу: карточки
+   первого экрана — h3, и без h2 между ними и h1 рвётся иерархия. */
+.vh{position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap}
+.lu-main > .grid{margin-top:32px}
 .lu-tabs{display:flex; gap:6px; margin-bottom:14px}
 .lu-tabs a{display:flex; align-items:center; justify-content:center; text-align:center; min-height:42px; flex:1 1 auto; white-space:nowrap;
   padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card);

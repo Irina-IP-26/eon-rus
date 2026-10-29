@@ -38,6 +38,25 @@ def cls(*parts):
 # Новый тип блока добавляется сюда и становится доступен всем страницам.
 
 def b_hero(b):
+    if b.get("tabs"):
+        # Первый экран в формате модельного ряда (решение Ирины 29.10.2026):
+        # слева заголовок, лид и карточки по две, справа вкладки линейки,
+        # фото и паспорт — те же классы lu-*, чтобы страницы линейки совпадали.
+        aside = _tabs(b) + _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
+        карточки = "".join(_card(c) for c in b.get("items", []))
+        i = f' id="{attr(b, "id")}"' if b.get("id") else ""
+        return f"""<section{_pad(b)}{i}>
+  <div class="wrap"><div class="lu-top">
+    <div class="lu-main">
+      <div class="eyebrow">{e(b["eyebrow"])}</div>
+      <h1>{raw(b["h1"])}{f' <span class="q">{raw(b["h1q"])}</span>' if b.get("h1q") else ''}</h1>
+      <p class="lede">{raw(b["lede"])}</p>
+      {f'<h2 class="vh">{raw(b["h2"])}</h2>' if b.get("h2") else ""}
+      <div class="grid g2">{карточки}</div>
+    </div>
+    <aside class="lu-aside">{aside}</aside>
+  </div></div>
+</section>"""
     cta = "".join(
         f'<a class="pill{" ghost" if c.get("ghost") else ""}" href="{attr(c,"href")}">{e(c["label"])}</a>'
         for c in b.get("cta", [])
@@ -70,23 +89,25 @@ def b_figs(b):
 </section>"""
 
 
+def _card(c):
+    parts = []
+    if c.get("chip"):
+        parts.append(f'<span class="chip{" calc" if c.get("chip_accent") else ""}">{e(c["chip"])}</span>')
+    if c.get("image"):
+        parts.append(_shot(c["image"]))
+    parts.append(f'<h3>{e(c["title"])}</h3><div class="rule"></div>')
+    if c.get("text"):
+        parts.append(f'<p>{raw(c["text"])}</p>')
+    if c.get("spec"):
+        parts.append(f'<div class="spec">{raw(c["spec"])}</div>')
+    if c.get("link"):
+        parts.append(f'<a class="more" href="{attr(c["link"],"href")}">{e(c["link"]["label"])} <span>&rarr;</span></a>')
+    return f'<div class="{cls("card", c.get("fill") and "fill-" + c["fill"])}">{"".join(parts)}</div>'
+
+
 def b_cards(b):
     g = {2: "g2", 3: "g3", 4: "g4"}.get(b.get("cols", len(b["items"])), "g3")
-    out = []
-    for c in b["items"]:
-        parts = []
-        if c.get("chip"):
-            parts.append(f'<span class="chip{" calc" if c.get("chip_accent") else ""}">{e(c["chip"])}</span>')
-        if c.get("image"):
-            parts.append(_shot(c["image"]))
-        parts.append(f'<h3>{e(c["title"])}</h3><div class="rule"></div>')
-        if c.get("text"):
-            parts.append(f'<p>{raw(c["text"])}</p>')
-        if c.get("spec"):
-            parts.append(f'<div class="spec">{raw(c["spec"])}</div>')
-        if c.get("link"):
-            parts.append(f'<a class="more" href="{attr(c["link"],"href")}">{e(c["link"]["label"])} <span>&rarr;</span></a>')
-        out.append(f'<div class="{cls("card", c.get("fill") and "fill-" + c["fill"])}">{"".join(parts)}</div>')
+    out = [_card(c) for c in b["items"]]
     return f'<section{_pad(b)}><div class="wrap">{_head(b)}<div class="grid {g}">{"".join(out)}</div></div></section>'
 
 
@@ -292,6 +313,15 @@ def b_subnav(b, slug):
 </nav>"""
 
 
+def _tabs(b):
+    """Кнопки навигации по линейке над фото в правой колонке."""
+    if not b.get("tabs"):
+        return ""
+    return ('<nav class="lu-tabs" aria-label="Навигация по линейке">' + "".join(
+        f'<a href="{attr(t, "href")}"' + (' aria-current="page"' if t.get("current") else "")
+        + f'>{e(t["label"])}</a>' for t in b["tabs"]) + "</nav>")
+
+
 def b_lineup(b):
     """Модельный ряд: подбор, карточки и сравнение выбранного.
 
@@ -335,12 +365,7 @@ def b_lineup(b):
         # линейки — она остаётся рядом, пока посетитель листает карточки.
         # Навигация по линейке — над фото в правой колонке, а не отдельной
         # полосой под шапкой: указание Ирины от 29.10.2026, экономит экран.
-        tabs = ""
-        if b.get("tabs"):
-            tabs = '<nav class="lu-tabs" aria-label="Навигация по линейке">' + "".join(
-                f'<a href="{attr(t, "href")}"' + (' aria-current="page"' if t.get("current") else "")
-                + f'>{e(t["label"])}</a>' for t in b["tabs"]) + "</nav>"
-        aside = tabs + _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
+        aside = _tabs(b) + _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
         if b.get("note"):
             aside += f'<p class="lu-note">{raw(b["note"])}</p>'
         go = (f'<a class="pill" href="#{lid}-grid">{e(b["go"])}</a>' if b.get("go") else "")
