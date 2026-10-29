@@ -465,3 +465,15 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .lu-tabs a[aria-current="page"]{background:var(--ink); border-color:var(--ink); color:#fff}
 .lu-note{color:var(--slate); font-size:15px; margin:20px 8px 0}
 @media (max-width:900px){ .lu-top{grid-template-columns:1fr; gap:28px} .lu-aside{position:static; order:-1} }
+
+/* ── Полоса документов с прокруткой вбок (сертификаты) ─────────────── */
+.strip-nav{display:flex; gap:8px; justify-content:flex-end; margin:-14px 0 14px}
+.strip-b{width:42px; height:42px; border-radius:50%; border:1px solid var(--line); background:var(--card);
+  color:var(--slate); font-size:18px; cursor:pointer}
+.strip-b:hover{border-color:var(--accent); color:var(--accent)}
+.strip{display:grid; grid-auto-flow:column; grid-auto-columns:200px; gap:14px; overflow-x:auto;
+  scroll-snap-type:x mandatory; padding-bottom:14px; scrollbar-width:thin}
+.strip-i{scroll-snap-align:start; display:flex; flex-direction:column; gap:10px; text-decoration:none;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px}
+.strip-i:hover{border-color:var(--accent)}
+.strip-i span{font-size:13.5px; line-height:1.3; font-weight:600; color:var(--ink)}

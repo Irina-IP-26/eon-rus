@@ -396,12 +396,33 @@ def b_lineup(b):
 </section>"""
 
 
+def b_strip(b):
+    """Полоса документов с прокруткой вбок, как на лендинге хранитель.рус.
+
+    Решение Ирины 29.10.2026: сертификатов десять, сеткой по четыре они
+    занимали три экрана. В полосе видно пять-шесть сканов, остальные —
+    прокруткой или стрелками. Скан целиком открывается щелчком по нему,
+    подпись «Открыть скан» не нужна.
+    """
+    sid = f'{attr(b, "id", "strip")}-row'
+    items = "".join(
+        f'<a class="strip-i" href="{attr(i["image"], "src")}" target="_blank" rel="noopener">'
+        f'{_shot(i["image"])}<span>{e(i["title"])}</span></a>'
+        for i in b["items"]
+    )
+    nav = (f'<div class="strip-nav"><button type="button" class="strip-b" data-strip="{sid}" data-dir="-1" '
+           f'aria-label="Назад">&larr;</button><button type="button" class="strip-b" data-strip="{sid}" '
+           f'data-dir="1" aria-label="Вперёд">&rarr;</button></div>')
+    return (f'<section{_pad(b)}><div class="wrap">{_head(b)}{nav}'
+            f'<div class="strip" id="{sid}" tabindex="0">{items}</div></div></section>')
+
+
 BLOCKS = {
     "hero": b_hero, "figs": b_figs, "cards": b_cards, "points": b_points,
     "steps": b_steps, "cases": b_cases, "plates": b_plates, "doc": b_doc, "calcgen": b_calcgen,
     "faq": b_faq,
     "circuit": b_circuit, "form": b_form, "table": b_table, "subnav": b_subnav,
-    "lineup": b_lineup,
+    "lineup": b_lineup, "strip": b_strip,
 }
 
 # ───────────────────────── вспомогательная вёрстка ─────────────────────────
@@ -636,7 +657,7 @@ PAGE = """<!doctype html>
 # Скрипт подключается только на тех страницах, где он нужен:
 # калькулятор лежит в отдельном файле и не грузится на остальных
 # семнадцати страницах, которым он ни к чему.
-BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js", "cases": "cases-more.js", "lineup": "lineup.js"}
+BLOCK_SCRIPTS = {"calcgen": "calc-generator.js", "form": "form.js", "cases": "cases-more.js", "lineup": "lineup.js", "strip": "strip.js"}
 
 
 def render(page, site):

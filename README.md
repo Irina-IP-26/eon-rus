@@ -167,6 +167,7 @@ python3 build.py
 | `points` | Список «термин — пояснение» | `items[{term, text}]` |
 | `steps` | Нумерованные шаги | `items[{title, text}]` |
 | `cases` | Карточки проектов | `items[{meta, title, text}]` |
+| `strip` | Полоса документов с прокруткой вбок и стрелками; скан открывается щелчком | `items[{title, image{src, alt, doc}}]` |
 | `plates` | Две паспортные таблички | `items[]` |
 | `faq` | Раскрывающиеся вопросы | `items[{q, a}]` |
 | `circuit` | Разделитель-дорожка платы | — |
