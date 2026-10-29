@@ -327,30 +327,32 @@ def b_lineup(b):
             f'<span>в сравнение</span></label></article>'
         )
     фильтры = f'<div class="lfilters">{фильтры}<button type="button" class="lf-reset" hidden>Сбросить</button></div>'
+    lid = attr(b, "id", "lineup")
+    счёт = f'<p class="lcount" id="{lid}-grid" aria-live="polite"></p>'
     if b.get("h1"):
-        # Страница начинается сразу с подбора: заголовок, фильтры и общая табличка
-        # в первом экране, без отдельного рекламного героя (решение Ирины 29.10.2026).
+        # Страница начинается сразу с подбора (решение Ирины 29.10.2026): слева заголовок,
+        # фильтры и карточки по две, справа колонка с общим фото, табличкой и описанием
+        # линейки — она остаётся рядом, пока посетитель листает карточки.
         aside = _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
         if b.get("note"):
             aside += f'<p class="lu-note">{raw(b["note"])}</p>'
-        go = (f'<a class="pill" href="#{attr(b, "id", "lineup")}-grid">{e(b["go"])}</a>'
-              if b.get("go") else "")
-        верх = f"""<div class="lu-top">
-      <div>
+        go = (f'<a class="pill" href="#{lid}-grid">{e(b["go"])}</a>' if b.get("go") else "")
+        тело = f"""<div class="lu-top">
+      <div class="lu-main">
         <h1>{raw(b["h1"])}</h1>
         <h2>{raw(b["h2"])}</h2>
         <p class="lede">{raw(b["lede"])}</p>
         {фильтры}
         <div class="cta">{go}</div>
+        {счёт}
+        <div class="grid g2 lgrid">{"".join(карточки)}</div>
       </div>
-      <div class="lu-aside">{aside}</div>
+      <aside class="lu-aside">{aside}</aside>
     </div>"""
     else:
-        верх = _head(b) + фильтры
-    return f"""<section{_pad(b)} id="{attr(b, "id", "lineup")}">
-  <div class="wrap">{верх}
-    <p class="lcount" id="{attr(b, "id", "lineup")}-grid" aria-live="polite"></p>
-    <div class="grid g3 lgrid">{"".join(карточки)}</div>
+        тело = _head(b) + фильтры + счёт + f'<div class="grid g3 lgrid">{"".join(карточки)}</div>'
+    return f"""<section{_pad(b)} id="{lid}">
+  <div class="wrap">{тело}
     <div class="lcmp-bar" hidden>
       <div class="wrap">
         <span class="lcmp-n"></span>

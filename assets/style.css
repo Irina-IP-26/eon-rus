@@ -435,12 +435,14 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .shot.doc{aspect-ratio:1/1.414; background:#fff}
 .shot.doc img{object-fit:contain}
 
-/* Модельный ряд без героя: подбор в первом экране */
-.lu-top{display:grid; grid-template-columns:1.35fr .85fr; gap:52px; align-items:start; margin-bottom:28px}
+/* Модельный ряд без героя: подбор и карточки слева, общая колонка справа */
+.lu-top{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:40px; align-items:start}
 .lu-top h1{font-size:clamp(40px,5.2vw,64px); line-height:1.02; letter-spacing:-.03em; font-weight:800; margin:0}
-.lu-top h2{font-size:clamp(28px,3.4vw,44px); line-height:1.1; letter-spacing:-.02em; font-weight:800; margin:14px 0 0}
-.lu-top .lede{font-size:17px; margin:18px 0 26px; max-width:56ch}
-.lu-top .lfilters{margin-bottom:22px}
+.lu-top h2{text-wrap:wrap; max-width:none; font-size:clamp(28px,3.4vw,44px); line-height:1.08; letter-spacing:-.025em; font-weight:800; margin:18px 0 0}
+.lu-top .lede{font-size:17px; margin:12px 0 28px; max-width:60ch}
+.lu-top .lfilters{margin-bottom:6px}
+.lu-top .cta{margin:24px 0 40px}
+.lu-aside{position:sticky; top:20px}
 .lu-aside .shot{aspect-ratio:3/2; margin-bottom:14px}
-.lu-note{color:var(--slate); font-size:15px; margin:16px 4px 0}
-@media (max-width:900px){ .lu-top{grid-template-columns:1fr; gap:28px} }
+.lu-note{color:var(--slate); font-size:15px; margin:20px 8px 0}
+@media (max-width:900px){ .lu-top{grid-template-columns:1fr; gap:28px} .lu-aside{position:static; order:-1} }
