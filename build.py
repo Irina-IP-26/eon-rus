@@ -468,6 +468,17 @@ def stamp(name):
     return f"{name}?v={h}"
 
 
+def page_title(page):
+    """Заголовок вкладки: всегда «Еон. …».
+
+    Указание Ирины от 29.10.2026: во вкладке браузера первым словом
+    должно стоять название компании, потом всё остальное. Поэтому
+    в content/*.json title пишется без бренда, а «Еон. » добавляется здесь.
+    """
+    t = page["title"]
+    return t if t.startswith("Еон") else f"Еон. {t}"
+
+
 def logo_defs(site):
     """Контуры логотипа один раз на страницу, в скрытом <symbol>.
 
@@ -616,7 +627,7 @@ def render(page, site):
         else:
             body.append(fn(b))
     return PAGE.format(
-        title=e(page["title"]), descr=e(page.get("description", "")),
+        title=e(page_title(page)), descr=e(page.get("description", "")),
         css=stamp("style.css"),
         seo=canonical_link(site, page["slug"]) + "\n" + og_meta(page, site, page["slug"]),
         draft=site["draft"], logo_defs=logo_defs(site),
