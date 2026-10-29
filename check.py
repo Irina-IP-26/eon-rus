@@ -894,6 +894,8 @@ class PageParser(HTMLParser):
             self.zone.append(tag)
         if tag == "section":
             self.section = a.get("class") or ""
+        if tag == "aside":
+            self.aside = a.get("class") or ""
         if tag == "meta" and (a.get("name") or "").lower() == "robots":
             self.robots.append(a.get("content") or "")
         if tag == "meta" and (a.get("name") or "").lower() == "description":
@@ -919,6 +921,7 @@ class PageParser(HTMLParser):
             self.imgs.append({"src": a.get("src") or "", "alt": a.get("alt"), "zone": self._zone(),
                               "hero": "hero" in self.section.split(),
                               "doc": getattr(self, "shot_doc", False),
+                              "portrait": "lu-aside" in getattr(self, "aside", "").split(),
                               "line": self.getpos()[0]})
             if self.cur is not None:
                 self.cur["text"] += " " + (a.get("alt") or "")  # картинка в ссылке подписывает её своим alt
@@ -934,6 +937,8 @@ class PageParser(HTMLParser):
             self.zone.pop()
         if tag == "section":
             self.section = ""
+        if tag == "aside":
+            self.aside = ""
         if tag == "a":
             self.cur = None
         if tag == "div":
@@ -1084,7 +1089,8 @@ def check_html(pages, rep):
                     # Скан документа (image.doc) показывается целиком, object-fit:contain — не обрезается.
                     if size and size[1] and not im.get("doc"):
                         w, h = size
-                        frame = FRAME_HERO if im["hero"] else FRAME
+                        # Колонка модельного ряда (.lu-aside .shot) — рамка 4:5 под вертикальный шкаф.
+                        frame = 4 / 5 if im.get("portrait") else (FRAME_HERO if im["hero"] else FRAME)
                         r = w / h
                         loss = 1 - min(r / frame, frame / r)
                         if loss >= CROP_MAX:

@@ -339,8 +339,7 @@ def b_lineup(b):
         go = (f'<a class="pill" href="#{lid}-grid">{e(b["go"])}</a>' if b.get("go") else "")
         тело = f"""<div class="lu-top">
       <div class="lu-main">
-        <h1>{raw(b["h1"])}</h1>
-        <h2>{raw(b["h2"])}</h2>
+        <div class="lu-title"><h1>{raw(b["h1"])}</h1><h2>{raw(b["h2"])}</h2></div>
         <p class="lede">{raw(b["lede"])}</p>
         {фильтры}
         <div class="cta">{go}</div>
