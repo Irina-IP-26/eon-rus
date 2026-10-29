@@ -326,10 +326,30 @@ def b_lineup(b):
             f'<label class="lcmp"><input type="checkbox" value="{attr(i, "title")}"> '
             f'<span>в сравнение</span></label></article>'
         )
+    фильтры = f'<div class="lfilters">{фильтры}<button type="button" class="lf-reset" hidden>Сбросить</button></div>'
+    if b.get("h1"):
+        # Страница начинается сразу с подбора: заголовок, фильтры и общая табличка
+        # в первом экране, без отдельного рекламного героя (решение Ирины 29.10.2026).
+        aside = _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
+        if b.get("note"):
+            aside += f'<p class="lu-note">{raw(b["note"])}</p>'
+        go = (f'<a class="pill" href="#{attr(b, "id", "lineup")}-grid">{e(b["go"])}</a>'
+              if b.get("go") else "")
+        верх = f"""<div class="lu-top">
+      <div>
+        <h1>{raw(b["h1"])}</h1>
+        <h2>{raw(b["h2"])}</h2>
+        <p class="lede">{raw(b["lede"])}</p>
+        {фильтры}
+        <div class="cta">{go}</div>
+      </div>
+      <div class="lu-aside">{aside}</div>
+    </div>"""
+    else:
+        верх = _head(b) + фильтры
     return f"""<section{_pad(b)} id="{attr(b, "id", "lineup")}">
-  <div class="wrap">{_head(b)}
-    <div class="lfilters">{фильтры}<button type="button" class="lf-reset" hidden>Сбросить</button></div>
-    <p class="lcount" aria-live="polite"></p>
+  <div class="wrap">{верх}
+    <p class="lcount" id="{attr(b, "id", "lineup")}-grid" aria-live="polite"></p>
     <div class="grid g3 lgrid">{"".join(карточки)}</div>
     <div class="lcmp-bar" hidden>
       <div class="wrap">
