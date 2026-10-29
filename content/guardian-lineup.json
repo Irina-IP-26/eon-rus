@@ -188,7 +188,8 @@
         {
           "title": "Хранитель Мини",
           "image": {
-            "need": "Хранитель Мини в сборе"
+            "src": "img/guardian-card-mini-v2.jpg",
+            "alt": "Хранитель Мини в сборе"
           },
           "data": {
             "phase": "1",
@@ -217,7 +218,8 @@
         {
           "title": "Хранитель Оптима",
           "image": {
-            "need": "Хранитель Оптима в сборе"
+            "src": "img/guardian-card-optima-1mod.jpg",
+            "alt": "Хранитель Оптима в сборе"
           },
           "data": {
             "phase": "1",
@@ -516,7 +518,8 @@
         {
           "title": "Хранитель Макси+",
           "image": {
-            "need": "Хранитель Макси+ в сборе"
+            "src": "img/guardian-card-maxi-plus.jpg",
+            "alt": "Хранитель Макси+ в сборе"
           },
           "data": {
             "phase": "3",
