@@ -430,3 +430,7 @@ section.dark .shot.empty span b{color:#C3CBD4}
   .lfilters{gap:14px 18px}
   .lf-reset{margin-left:0}
 }
+
+/* Сканы документов (image.doc): лист А4 целиком, без обрезки — у фотографий 4:3 и cover */
+.shot.doc{aspect-ratio:1/1.414; background:#fff}
+.shot.doc img{object-fit:contain}

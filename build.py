@@ -384,7 +384,8 @@ def _shot(img, eager=False):
     """Изображение или подписанное пустое место под него.
 
     Поля: src (путь к файлу), alt (альтернативный текст), caption (подпись),
-    need (что именно должно быть на снимке — показывается, пока файла нет).
+    need (что именно должно быть на снимке — показывается, пока файла нет),
+    doc (true — скан документа: лист целиком, без обрезки по рамке).
 
     eager=True — для снимка первого экрана. Ленивая загрузка откладывает
     картинку до приближения к экрану, и для героя это значит «загрузить
@@ -396,7 +397,8 @@ def _shot(img, eager=False):
         load = ('loading="eager" fetchpriority="high"' if eager
                 else 'loading="lazy"')
         inner = f'<img src="{attr(img, "src")}" alt="{attr(img, "alt")}" {load}>'
-        box = f'<div class="shot">{inner}</div>'
+        cls = "shot doc" if img.get("doc") else "shot"
+        box = f'<div class="{cls}">{inner}</div>'
     else:
         need = e(img.get("need", "место под изображение"))
         box = f'<div class="shot empty"><span><b>фото</b>{need}</span></div>'

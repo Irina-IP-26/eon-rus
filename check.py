@@ -902,6 +902,8 @@ class PageParser(HTMLParser):
             self.og.setdefault(a["property"].lower(), []).append((a.get("content") or "", self.getpos()[0]))
         if tag == "link" and "canonical" in (a.get("rel") or "").lower().split():
             self.canonicals.append((a.get("href") or "", self.getpos()[0]))
+        if tag == "div" and "shot" in (a.get("class") or "").split():
+            self.shot_doc = "doc" in (a.get("class") or "").split()
         if tag == "div" and "draft" in (a.get("class") or "").split():
             self.in_draft = True
             self.draft.append("")
@@ -916,6 +918,7 @@ class PageParser(HTMLParser):
         if tag == "img":
             self.imgs.append({"src": a.get("src") or "", "alt": a.get("alt"), "zone": self._zone(),
                               "hero": "hero" in self.section.split(),
+                              "doc": getattr(self, "shot_doc", False),
                               "line": self.getpos()[0]})
             if self.cur is not None:
                 self.cur["text"] += " " + (a.get("alt") or "")  # картинка в ссылке подписывает её своим alt
@@ -1078,7 +1081,8 @@ def check_html(pages, rep):
                 else:
                     images.setdefault(src, path.stat().st_size)
                     size = image_size(path)
-                    if size and size[1]:
+                    # Скан документа (image.doc) показывается целиком, object-fit:contain — не обрезается.
+                    if size and size[1] and not im.get("doc"):
                         w, h = size
                         frame = FRAME_HERO if im["hero"] else FRAME
                         r = w / h
