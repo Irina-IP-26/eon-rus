@@ -333,7 +333,14 @@ def b_lineup(b):
         # Страница начинается сразу с подбора (решение Ирины 29.10.2026): слева заголовок,
         # фильтры и карточки по две, справа колонка с общим фото, табличкой и описанием
         # линейки — она остаётся рядом, пока посетитель листает карточки.
-        aside = _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
+        # Навигация по линейке — над фото в правой колонке, а не отдельной
+        # полосой под шапкой: указание Ирины от 29.10.2026, экономит экран.
+        tabs = ""
+        if b.get("tabs"):
+            tabs = '<nav class="lu-tabs" aria-label="Навигация по линейке">' + "".join(
+                f'<a href="{attr(t, "href")}"' + (' aria-current="page"' if t.get("current") else "")
+                + f'>{e(t["label"])}</a>' for t in b["tabs"]) + "</nav>"
+        aside = tabs + _shot(b.get("image"), eager=True) + (_plate(b["plate"]) if b.get("plate") else "")
         if b.get("note"):
             aside += f'<p class="lu-note">{raw(b["note"])}</p>'
         go = (f'<a class="pill" href="#{lid}-grid">{e(b["go"])}</a>' if b.get("go") else "")
@@ -524,14 +531,13 @@ def header(site, current):
     <div class="top-row">
       <a class="brand" href="index.html" aria-label="ЕОН, на главную">{logo(site)}</a>
       <span class="brand-tag">{e(site["tagline"])}</span>
-      <span class="top-sp"></span>
+      <ul class="nav" aria-label="Основная навигация">{"".join(nav)}</ul>
       <div class="top-c">
         <a href="mailto:{e(site["email"])}">{e(site["email"])}</a>
         <a href="tel:{e(site["phone_tel"])}">{e(site["phone"])}</a>
       </div>
       <a class="pill" href="{e(site.get("form_href", "#form"))}">{e(site["cta"])}</a>
     </div>
-    <ul class="nav" aria-label="Основная навигация">{"".join(nav)}</ul>
   </div>
 </header>"""
 

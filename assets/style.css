@@ -59,15 +59,21 @@ img{max-width:100%; height:auto}
 /* шапка */
 .top{background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:env(safe-area-inset-top, 0px); z-index:30}
 .top-in,.wrap{max-width:var(--wrap); margin:0 auto; padding-inline:20px}
-.top-row{display:flex; align-items:center; gap:18px; padding-block:14px; flex-wrap:wrap}
+/* Шапка в одну строку: логотип, подпись, меню по центру, контакты столбиком,
+   кнопка. Указание Ирины от 29.10.2026 — прежняя шапка в два этажа
+   съедала экран. На узких экранах меню уходит второй строкой. */
+.top-row{display:flex; align-items:center; gap:18px; padding-block:12px; flex-wrap:wrap}
 .brand{display:flex; align-items:center; gap:10px; text-decoration:none; flex:0 0 auto; color:var(--accent)}
 .logo{display:block; height:26px; width:auto; fill:currentColor}
 .brand-tag{color:var(--mist); font-size:12.5px; line-height:1.3; padding-left:14px; border-left:1px solid var(--line); max-width:230px}
-.top-sp{flex:1 1 auto; min-width:0}
-.top-c{display:flex; align-items:center; gap:16px; font-size:13.5px; color:var(--slate); flex-wrap:wrap}
+.top-c{display:flex; flex-direction:column; align-items:flex-end; gap:1px; font-size:13.5px; line-height:1.35; color:var(--slate)}
 .top-c a{text-decoration:none}
 .top-c a:hover{color:var(--accent)}
-.nav{display:flex; gap:26px; flex-wrap:wrap; padding-bottom:13px; font-size:14.5px; font-weight:600}
+.nav{display:flex; gap:26px; flex-wrap:wrap; margin:0 auto; padding:0; font-size:14.5px; font-weight:600}
+@media (max-width:1100px){
+  .nav{order:10; flex-basis:100%; margin:0; padding-top:2px}
+  .top-c{margin-left:auto}
+}
 .nav a{text-decoration:none; color:var(--slate); padding-bottom:3px; border-bottom:2px solid transparent}
 .nav a:hover{color:var(--ink); border-bottom-color:var(--accent)}
 .nav a[aria-current="page"]{color:var(--ink); border-bottom-color:var(--accent)}
@@ -447,5 +453,11 @@ section.dark .shot.empty span b{color:#C3CBD4}
 .lu-top .cta{margin:24px 0 40px}
 .lu-aside{position:sticky; top:20px}
 .lu-aside .shot{aspect-ratio:4/5; margin-bottom:14px}
+.lu-tabs{display:flex; gap:6px; margin-bottom:14px}
+.lu-tabs a{display:flex; align-items:center; justify-content:center; text-align:center; min-height:42px; flex:1 1 auto; white-space:nowrap;
+  padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card);
+  font:600 14px/1.2 var(--sans); color:var(--slate); text-decoration:none}
+.lu-tabs a:hover{border-color:var(--accent); color:var(--accent)}
+.lu-tabs a[aria-current="page"]{background:var(--ink); border-color:var(--ink); color:#fff}
 .lu-note{color:var(--slate); font-size:15px; margin:20px 8px 0}
 @media (max-width:900px){ .lu-top{grid-template-columns:1fr; gap:28px} .lu-aside{position:static; order:-1} }
