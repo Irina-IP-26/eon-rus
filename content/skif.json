@@ -78,13 +78,13 @@
       "id": "where",
       "tabs": [
         {
-          "label": "Описание",
+          "label": "Для работы",
           "href": "skif.html",
           "current": true
         },
         {
-          "label": "Модельный ряд",
-          "href": "#lineup"
+          "label": "Для дома",
+          "href": "skif-home.html"
         },
         {
           "label": "Проекты",
