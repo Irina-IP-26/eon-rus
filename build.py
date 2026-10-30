@@ -38,7 +38,7 @@ def cls(*parts):
 # Новый тип блока добавляется сюда и становится доступен всем страницам.
 
 def b_hero(b):
-    if b.get("tabs"):
+    if b.get("tabs") or b.get("items"):
         # Первый экран в формате модельного ряда (решение Ирины 29.10.2026):
         # слева заголовок, лид и карточки по две, справа вкладки линейки,
         # фото и паспорт — те же классы lu-*, чтобы страницы линейки совпадали.
@@ -53,6 +53,7 @@ def b_hero(b):
       <p class="lede">{raw(b["lede"])}</p>
       {f'<h2 class="vh">{raw(b["h2"])}</h2>' if b.get("h2") else ""}
       <div class="grid g2">{карточки}</div>
+      {f'<p class="lede lu-after">{raw(b["lede2"])}</p>' if b.get("lede2") else ""}
     </div>
     <aside class="lu-aside">{aside}</aside>
   </div></div>
